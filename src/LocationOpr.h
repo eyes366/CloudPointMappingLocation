@@ -12,7 +12,7 @@
 #include "CommonHeader.h"
 #include "LocationOprAPI.h"
 
-#define LOCATION_IMU_MAX_SIZE 200	//缓存100frames的imu数据
+#define LOCATION_IMU_MAX_SIZE 400	//缓存400frames的imu数据
 
 // struct LocationParam
 // {

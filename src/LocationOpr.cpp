@@ -344,8 +344,8 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 	int nImuRtn = GetImuDataByTime(pt->header.stamp, gpsData);
 	if (g_nSectorCont%2000 == 0)
 	{
-//		printf("GetImuDataByTime == %d: time:%.6f\n", nImuRtn, gpsData.dSecInWeek);
-//		printf("%.6f:%.6f:%.6f\n",double(pt->header.stamp), m_ImuList.front().dSecInWeek, m_ImuList.back().dSecInWeek);
+		printf("GetImuDataByTime == %d: time:%.6f\n", nImuRtn, gpsData.dSecInWeek);
+		printf("%.6f:%.6f:%.6f\n",double(pt->header.stamp), m_ImuList.front().dSecInWeek, m_ImuList.back().dSecInWeek);
 	}
 	if (nImuRtn == -2)
 	{
@@ -354,18 +354,29 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 	}
 	else if (nImuRtn == -1)
 	{
-//		std::cout << "GetImuDataByTime too old" << std::endl;
+		std::cout << "GetImuDataByTime too old::;   LOST LIDAR DATA!!!!!" << std::endl;
 		return;
 	}
 	else if (nImuRtn == 0)
 	{
-		boost::this_thread::sleep(boost::posix_time::milliseconds(100));
-		if (GetImuDataByTime(pt->header.stamp, gpsData) != 1)
+		int nSleepMaxCont = 0;
+		while (nImuRtn == 0)
 		{
-// 			std::cout << "GetImuDataByTime too new" << "   imu buf size:" << m_ImuList.size()
-// 				<< "velo time:"<<std::endl;
-			printf("GetImuDataByTime too new.. imu buf size:%d lidar time:%lld:%lld-%lld\n",
-				m_ImuList.size(), pt->header.stamp, uint64_t(m_ImuList.front().dSecInWeek), uint64_t(m_ImuList.back().dSecInWeek));
+			nSleepMaxCont++;
+			boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+			nImuRtn = GetImuDataByTime(pt->header.stamp, gpsData);
+			if (nSleepMaxCont >= 10)
+			{
+				printf("GetImuDataByTime == 0 :: nSleepMaxCont >= 10 LOST LIDAR DATA!!!!!");
+				return;
+			}
+// 			printf("GetImuDataByTime too new.. imu buf size:%d lidar time:%lld: imu time:%lld-%lld, sleep cont:%d\n",
+// 				m_ImuList.size(), pt->header.stamp, uint64_t(m_ImuList.front().dSecInWeek), uint64_t(m_ImuList.back().dSecInWeek),
+// 				nSleepMaxCont);
+			
+		}
+		if (nImuRtn < 0)
+		{
 			return;
 		}
 	}
