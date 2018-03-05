@@ -103,10 +103,11 @@ void CDataSimulator::ImuReplayThread()
 			if (nTime  <= m_nVelodyneTime/* + 50000*/)
 			{
 				POSE_DATA pose_data = m_ImuOpr.m_Data[i].toPOSE_DATA();
+				pose_data.gps_second /= 1000000.0;
 				m_ImuCallBack(&pose_data);
 				if (nImuCont%200 == 0)
 				{
-					printf("imu package cont: %d time:%.6f\n", nImuCont, pose_data.gps_second);
+					printf("imu package cont: %d time:%.6f\n", nImuCont, pose_data.gps_second*1000000.0);
 				}
 				nImuCont++;
 			}
