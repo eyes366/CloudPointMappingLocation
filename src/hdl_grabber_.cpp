@@ -338,7 +338,7 @@ pcl::HDLGrabber::toPointClouds (HDLDataPacket *dataPacket)
    static int nHdl32Cont = 0;
    if (nHdl32Cont%2000 == 0)
    {
-	   printf("hdl32 inner time stamp:%lld\n", velodyne_time);
+//	   printf("hdl32 inner time stamp:%lld\n", velodyne_time);
    }
    nHdl32Cont++;
 
