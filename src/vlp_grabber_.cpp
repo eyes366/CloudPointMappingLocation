@@ -111,8 +111,9 @@ pcl::VLPGrabber::toPointClouds (HDLDataPacket *dataPacket)
   time_t system_time;
   time (&system_time);
 //  time_t velodyne_time = (system_time & 0x00000000ffffffffl) << 32 | dataPacket->gpsTimestamp;
-  double* pTime = (double*)(((char*)(dataPacket))+1206);
-  uint64_t velodyne_time = uint64_t((*pTime)*1000000.0);
+  double dTime = 0.0;
+  memcpy(&dTime, ((uint8_t*)dataPacket)+1206, sizeof(double));
+  uint64_t velodyne_time = uint64_t(dTime*1000000.0);
 
   current_scan_xyzi_->header.stamp = velodyne_time;
   current_scan_xyzi_->header.seq = scan_counter;
@@ -197,7 +198,7 @@ pcl::VLPGrabber::toPointClouds (HDLDataPacket *dataPacket)
         dual_xyzrgba.rgba = laser_rgb_mapping_[j % VLP_MAX_NUM_LASERS].rgba;
       }
 
-//      if (! (pcl_isnan (xyz.x) || pcl_isnan (xyz.y) || pcl_isnan (xyz.z)))
+      if (! (pcl_isnan (xyz.x) || pcl_isnan (xyz.y) || pcl_isnan (xyz.z)))
       {
         current_sweep_xyz_->push_back (xyz);
         current_sweep_xyzrgba_->push_back (xyzrgba);
@@ -208,8 +209,8 @@ pcl::VLPGrabber::toPointClouds (HDLDataPacket *dataPacket)
       }
       if (dataPacket->mode == VLP_DUAL_MODE)
       {
-//        if ((dual_xyz.x != xyz.x || dual_xyz.y != xyz.y || dual_xyz.z != xyz.z)
-//            && ! (pcl_isnan (dual_xyz.x) || pcl_isnan (dual_xyz.y) || pcl_isnan (dual_xyz.z)))
+        if ((dual_xyz.x != xyz.x || dual_xyz.y != xyz.y || dual_xyz.z != xyz.z)
+            && ! (pcl_isnan (dual_xyz.x) || pcl_isnan (dual_xyz.y) || pcl_isnan (dual_xyz.z)))
         {
           current_sweep_xyz_->push_back (dual_xyz);
           current_sweep_xyzrgba_->push_back (dual_xyzrgba);
@@ -225,7 +226,7 @@ pcl::VLPGrabber::toPointClouds (HDLDataPacket *dataPacket)
   }
 
   current_scan_xyzi_->is_dense = true;
-  fireCurrentScan (dataPacket->firingData[0].rotationalPosition, dataPacket->firingData[11].rotationalPosition);
+  HDLGrabber::fireCurrentScan (dataPacket->firingData[0].rotationalPosition, dataPacket->firingData[11].rotationalPosition);
 }
 
 /////////////////////////////////////////////////////////////////////////////
