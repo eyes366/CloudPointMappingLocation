@@ -56,8 +56,8 @@ int CMappingOpr::StartMapping(std::string szDataPath)
 		m_szDataPath = szDataPath;
 	}
 	cout << "Loading nav data..." << endl;
-//	m_ImuOpr.ReadFile(m_szDataPath+"nav.nav");
-	m_ImuOpr.ReadFile(m_szDataPath+"imu.txt");
+	m_ImuOpr.ReadFile(m_szDataPath+"nav.nav");
+//	m_ImuOpr.ReadFile(m_szDataPath+"imu.txt");
 	cout << "Finish loading nav data..." << endl;
 	m_nMapInd = 0;
 	m_nSweepCont= 0;
@@ -160,8 +160,8 @@ void CMappingOpr::sectorScan(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& pt
 		pcl::VoxelGrid<pcl::PointXYZI> sor;
 		sor.setInputCloud (map.makeShared());
 		sor.setLeafSize (m_fLeafSize, m_fLeafSize, m_fLeafSize);
-//		sor.filter (mapFilter);
-		mapFilter = map;
+		sor.filter (mapFilter);
+//		mapFilter = map;
 		std::cout << "Point cont filtered!" << mapFilter.size() << std::endl;
 		double dCurX, dCurY, dCurZ, dCurMile;
 		m_MapOpr.GetLastPosition(dCurX, dCurY, dCurZ, dCurMile);

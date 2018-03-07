@@ -23,8 +23,8 @@ public:
 
 private:
 	CVelodyneOpr m_VelodyneOpr;
-//	CImuNav m_ImuOpr;
-	CImuCalc m_ImuOpr;
+	CImuNav m_ImuOpr;
+//	CImuCalc m_ImuOpr;
 	pcl::PointCloud<pcl::PointXYZI> m_PointCloudMap;
 	CMapConstruct m_MapOpr;
 	Eigen::Affine3d m_Calib;
