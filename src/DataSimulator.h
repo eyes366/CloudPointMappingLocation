@@ -19,21 +19,19 @@ public:
 	void SetCallBack(FunctionVelodyneFeedCallBack VelodyneCallBack,
 		FunctionImuFeedCallBack ImuCallBack);
 
-	int StartSimulator(std::string szLogDir);
+	int StartSimulator(std::string szLogDir, uint64_t nStartTime = uint64_t(0));
 
 private:
+	void LidarReplayThread();
 	void ImuReplayThread();
-// 	void VelodyneSectorCallBack(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& 
-// 		point_sector, float start, float end);
 	FunctionVelodyneFeedCallBack m_VelodyneCallBack;
 	FunctionImuFeedCallBack m_ImuCallBack;
-//	CImu100HzReader m_ImuOpr;
 	CImuCalc m_ImuOpr;
-//	CVelodyneOpr m_VelOpr;
 	std::string m_szLogDir;
 	unsigned int m_nImuSearchInd;
 	boost::mutex m_lock;
 	uint64_t m_nVelodyneTime;
+	uint64_t m_nStartTime;
 };
 
 

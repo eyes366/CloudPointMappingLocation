@@ -20,8 +20,9 @@ void CDataSimulator::SetCallBack(FunctionVelodyneFeedCallBack VelodyneCallBack,
 	m_ImuCallBack = ImuCallBack;
 }
 
-int CDataSimulator::StartSimulator(std::string szLogDir)
+int CDataSimulator::StartSimulator(std::string szLogDir, uint64_t nStartTime)
 {
+	m_nStartTime = nStartTime;
 	m_nVelodyneTime = 0;
 	m_nImuSearchInd = 0;
 
@@ -33,8 +34,14 @@ int CDataSimulator::StartSimulator(std::string szLogDir)
 	}
 	
 	boost::thread imuThread(boost::bind(&CDataSimulator::ImuReplayThread, this));
+	boost::thread LidarThread(boost::bind(&CDataSimulator::LidarReplayThread, this));
 
-	std::ifstream fs((m_szLogDir+string("test.vel32")).c_str(),
+	return 1;
+}
+
+void CDataSimulator::LidarReplayThread()
+{
+	std::ifstream fs((m_szLogDir+string("test.vel16")).c_str(),
 		std::ios::binary);
 	if (!fs.is_open())
 	{
@@ -51,10 +58,15 @@ int CDataSimulator::StartSimulator(std::string szLogDir)
 	{
 		fs.read((char*)(&buf), nDataLen);
 		uint64_t nTimeNow = uint64_t(buf.gps_second*1000000.0);
-		if (nTimeNow < 353475000000)
+		if (m_nStartTime == 0)
+		{
+			m_nStartTime = nTimeNow;
+		}
+		if (nTimeNow < m_nStartTime)
 		{
 			continue;
 		}
+		
 		if (nVelodyneCont == 0)
 		{
 			start_sys_time = boost::get_system_time();
@@ -70,27 +82,13 @@ int CDataSimulator::StartSimulator(std::string szLogDir)
 		m_nVelodyneTime = nTimeNow;
 		if (nVelodyneCont%2000 == 0)
 		{
-			printf("velodyne package cont: %d time:%lld\n", nVelodyneCont, nTimeNow);
+//			printf("velodyne package cont: %d time:%lld\n", nVelodyneCont, nTimeNow);
 		}
 		nVelodyneCont++;
 	}
 	std::cout<<std::endl;
 	fs.close();
-
-
-	return 1;
 }
-
-// void CDataSimulator::VelodyneSectorCallBack(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& 
-// 											point_sector, float start, float end)
-// {
-// // 	if (point_sector->header.seq % 80 == 0)
-// // 	{
-// // 		printf("Lidar time: %lld\n", point_sector->header.stamp);
-// // 	}
-// 	m_nVelodyneTime = point_sector->header.stamp;
-// 	m_VelodyneCallBack(point_sector, start, end);
-// }
 
 void CDataSimulator::ImuReplayThread()
 {
@@ -107,7 +105,7 @@ void CDataSimulator::ImuReplayThread()
 				m_ImuCallBack(&pose_data);
 				if (nImuCont%200 == 0)
 				{
-					printf("imu package cont: %d time:%.6f\n", nImuCont, pose_data.gps_second*1000000.0);
+//					printf("imu package cont: %d time:%.6f\n", nImuCont, pose_data.gps_second*1000000.0);
 				}
 				nImuCont++;
 			}
