@@ -31,12 +31,20 @@ int CLocationOpr::Init(LocationAPIParam Param)
 		Eigen::AngleAxisf (-1.0*-1.563736,   Eigen::Vector3f::UnitZ ()) *
 		Eigen::AngleAxisf (3.163187, Eigen::Vector3f::UnitX ()) *
 		Eigen::AngleAxisf (-0.790054,  Eigen::Vector3f::UnitY ()));
+
 	Eigen::Matrix4f tt;
 	tt << 0, 0, -1, 0,
 		0, 1, 0, 0,
 		1, 0, 0, 0,
 		0, 0, 0, 1;
 	m_Calib = calib*tt;
+
+	Eigen::Isometry3f calib32_16;
+	calib32_16.matrix() << 3.5603612272025249e-002, -9.9904256492177179e-001,   2.5423144331705675e-002, 3.4874775702507222e-003,
+		6.9741382768883076e-001, 4.3058732817540829e-002,     7.1537395708577567e-001, 2.9969301888692856e-001,
+		-7.1578372134437152e-001, -7.7394445973259299e-003,   6.9827914565432059e-001, -2.7290447621211117e-001, 
+		0., 0., 0., 1.;
+	m_Calib = m_Calib*calib32_16.inverse();
 
 	m_MapOpr.m_dRepeatAvoidDist = 0.0001;// 0.0001m/0.0005s=0.2m/s=0.7km/h
 	m_MapOpr.m_dMapSegmentDist = m_Param.dSegmentDist/*5.0*/;
@@ -71,12 +79,15 @@ int CLocationOpr::StartLocate(POSE_DATA& init_pose)
 	m_szLogPath = string(szTime)+string("/");
 	boost::filesystem::create_directories(m_szLogPath.c_str());
 
+	//初始GnssData
 	GnssData inti_pose_gnss;
 	inti_pose_gnss.fromPOSE_DATA(init_pose);
 	inti_pose_gnss.rectifyQuaternion();
 
+	//开启velodyne
 	VelodyneDataReadParam VelParam;
-	VelParam.nDevType = 1;//hdl-32
+//	VelParam.nDevType = 1;//hdl-32
+	VelParam.nDevType = 0;//vlp-16
 	VelParam.nReadType = 1;//
 	VelParam.nDataFetchType = 0;//在线运行
 	VelParam.bUseExternalCallBack = true;//使用外部回掉
@@ -89,6 +100,7 @@ int CLocationOpr::StartLocate(POSE_DATA& init_pose)
 	m_LocalMap.clear();
 	m_bIsRunLocation = true;
 
+	//在地图坐标系中初始位置及姿态
 	MapInfo ori_positon = m_MapInfo.front();
 	double dDistY = 111319.55*(inti_pose_gnss.dLatitude - ori_positon.dRefLatitude);
 	double dDistX = 111319.55*(inti_pose_gnss.dLongitude - ori_positon.dRefLongitude)*
@@ -109,17 +121,11 @@ int CLocationOpr::StartLocate(POSE_DATA& init_pose)
 		inti_pose_gnss.qy, inti_pose_gnss.qz);
 	tf_(0, 3) = dDistX;
 	tf_(1, 3) = dDistY;
-	tf_(2, 3) = start_match_point.z;
+	tf_(2, 3) = start_match_point.z;//使用地图中最近点的高程
 	Eigen::Matrix4d init_tf = tf_.matrix();
 	cout << "init_tf:" << endl;
 	cout << init_tf << endl;
-	// 	Eigen::Matrix4d init_tf = (Eigen::Translation3d(dDistX, dDistY, start_match_point.z)*
-	// 		Eigen::AngleAxisd((-1.0*dHeading)/180.0*3.141592654, Eigen::Vector3d::UnitZ ()) *
-	// 		Eigen::AngleAxisd(0.0/180.0*3.141592654, Eigen::Vector3d::UnitX ()) *
-	// 		Eigen::AngleAxisd(0.0/180.0*3.141592654, Eigen::Vector3d::UnitY ())).matrix();
-	m_PoseInMap.push_back(init_tf);
-
-	m_PoseDr.push_back(init_tf/*Eigen::Matrix4d::Identity()*/);
+	m_PoseInMap.push_back(init_tf);//设置在地图坐标系的中初始位置
 
 	m_thread_Locate = boost::thread(boost::bind(&CLocationOpr::LocateThread, this));
 
@@ -128,6 +134,10 @@ int CLocationOpr::StartLocate(POSE_DATA& init_pose)
 
 void CLocationOpr::LocateThread()
 {
+	m_fsLocation.open((m_szLogPath+string("Location.txt")).c_str());
+	char szLogOut[1024] = {0};
+	sprintf_s(szLogOut, 1024, "Start Locate Thread...");
+	WriteLocationLog(szLogOut);
 	try
 	{
 		while (m_bIsRunLocation)
@@ -143,9 +153,11 @@ void CLocationOpr::LocateThread()
 				m_bLocalMapIsReady = false;
 				m_LocalMapLock.unlock();
 				//////////////////////////////////////////////////////////////////////////
-				cout << "***************************" << endl;
-				cout << "point cont: " << temp.size() << endl;
-				pcl::transformPointCloud(temp, temp, tf.cast<float>().inverse().matrix());//将局部地图转换到车身坐标系下
+				sprintf_s(szLogOut, 1024, "****************************");
+				WriteLocationLog(szLogOut);
+				sprintf_s(szLogOut, 1024, "point cont: %d", temp.size());
+				WriteLocationLog(szLogOut);
+				pcl::transformPointCloud(temp, temp, tf.cast<float>().inverse().matrix());//将局部地图转换到车身(imu)坐标系下
 				LocateWithMap(temp.makeShared(), tf);
 				//////////////////////////////////////////////////////////////////////////
 			}
@@ -156,27 +168,43 @@ void CLocationOpr::LocateThread()
 			}
 		}
 	}
-	catch (...)
+	catch (exception& e)
 	{
-		std::cout << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" << std::endl;
-		std::cout << "Interrupt exception was thrown." << std::endl;
+		sprintf_s(szLogOut, 1024, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+		WriteLocationLog(szLogOut);
+		sprintf_s(szLogOut, 1024, "%s", e.what());
+		WriteLocationLog(szLogOut);
+		sprintf_s(szLogOut, 1024, "Interrupt exception was thrown.");
+		WriteLocationLog(szLogOut);
+		m_fsLocation.close();
 	}
 }
 
 int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen::Matrix4d& tf)
 {
+	char szLogOut[1024] = {0};
 	PointCloud<PointXYZI>::Ptr pt4NdtMapping(new PointCloud<PointXYZI>);
 	pt4NdtMapping->reserve(2000000);
 	PointCloud<PointXYZI>::Ptr pt4NdtMappingFilter(new PointCloud<PointXYZI>);
 
-	Eigen::Matrix4d delta_pose = m_PoseDr.back().inverse().matrix()*tf;
-	Eigen::Matrix4d guess_pose = m_PoseInMap.back()*delta_pose;
+	sprintf_s(szLogOut, 1024, "Lidar gps time:%lld", pt->header.stamp);
+	WriteLocationLog(szLogOut);
+
+	Eigen::Matrix4d delta_pose = m_PoseDr.back().inverse().matrix()*tf;//相对于上一次匹配的相对变化量
+
+	stringstream szTemp;
+	szTemp << delta_pose;
+	sprintf_s(szLogOut, 1024, "delta_pose: %s", szTemp.str().c_str());
+	WriteLocationLog(szLogOut);
+
+	Eigen::Matrix4d guess_pose = m_PoseInMap.back()*delta_pose;			//使用相对变化量预测的当前位置
 	PointCloud<PointXYZI>::Ptr pt4NdtFilter(new PointCloud<PointXYZI>);
 	FilterPointCloud(pt, pt4NdtFilter);
 //	(*pt4NdtFilter) = (*pt);
-	cout << "pt4NdtFilter  " << pt4NdtFilter->size() << endl;
+	sprintf_s(szLogOut, 1024, "pt4NdtFilter %d", pt4NdtFilter->size());
+	WriteLocationLog(szLogOut);
 	PointCloud<PointXYZI>::Ptr ptGuess(new PointCloud<PointXYZI>);
-	pcl::transformPointCloud(*pt4NdtFilter, *ptGuess, guess_pose);
+	pcl::transformPointCloud(*pt4NdtFilter, *ptGuess, guess_pose);//预测位置上的点云，不参与实际运算
 
 	pcl::PointXYZ ptPosition(guess_pose(0,3), 
 		guess_pose(1,3), guess_pose(2,3));
@@ -198,20 +226,24 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	
 	int nStart = nMapInd-3<0?0:nMapInd-3;
 	int nEnd = nMapInd+2>=m_MapInfo.size()?m_MapInfo.size()-1:nMapInd+2;
-	cout << "search ind:  " << nMapInd << "," << nStart << "," << nEnd << "," << m_MapInfo.size() << endl;
+	sprintf_s(szLogOut, 1024, "search ind: %d,%d,%d,%d", nMapInd, nStart, nEnd, m_MapInfo.size());
+	WriteLocationLog(szLogOut);
 	for (int i = nStart; i <= nEnd; i++)
 	{
 		PointCloud<PointXYZI> temp;
-		cout << "Load map:" << m_MapInfo[i].szMapPath << endl;
 		pcl::io::loadPCDFile(m_MapInfo[i].szMapPath, temp);
 		(*pt4NdtMapping) += temp;
 	}
-	cout << "pt4NdtMapping  " << pt4NdtMapping->size() << endl;
+	sprintf_s(szLogOut, 1024, "pt4NdtMapping %d", pt4NdtMapping->size());
+	WriteLocationLog(szLogOut);
 
-	FilterPointCloud(pt4NdtMapping, pt4NdtMappingFilter);
-//	(*pt4NdtMappingFilter) = (*pt4NdtMapping);
-	cout << "pt4NdtMappingFilter  " << pt4NdtMappingFilter->size() << endl;
+//	FilterPointCloud(pt4NdtMapping, pt4NdtMappingFilter);
+	(*pt4NdtMappingFilter) = (*pt4NdtMapping);
 
+	sprintf_s(szLogOut, 1024, "pt4NdtMappingFilter: %d", pt4NdtMappingFilter->size());
+	WriteLocationLog(szLogOut);
+
+	boost::posix_time::ptime time_start = boost::posix_time::microsec_clock::universal_time();
 	pcl::NormalDistributionsTransform<PointXYZI, PointXYZI> ndt;
 	ndt.setTransformationEpsilon(0.01);
 	ndt.setStepSize(2.0);//3.0
@@ -220,9 +252,16 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	ndt.setInputSource(pt4NdtFilter);
 	ndt.setInputTarget(pt4NdtMappingFilter);
 	PointCloud<PointXYZI> output;
-//	ndt.align(output, guess_pose.cast<float>());
-//	Eigen::Matrix4d ndt_pose = ndt.getFinalTransformation().cast<double>();
-	Eigen::Matrix4d ndt_pose = guess_pose;
+	ndt.align(output, guess_pose.cast<float>());
+	Eigen::Matrix4d ndt_pose = ndt.getFinalTransformation().cast<double>();
+//	Eigen::Matrix4d ndt_pose = guess_pose;
+	int nFinalIter = ndt.getFinalNumIteration();
+
+	boost::posix_time::ptime time_end = boost::posix_time::microsec_clock::universal_time();
+	int nMilliSec = (time_end - time_start).total_milliseconds();
+
+	sprintf_s(szLogOut, 1024, "Ndt finish, cost time:%d ms nFinalIter:%d", nMilliSec, nFinalIter);
+	WriteLocationLog(szLogOut);
 
 	// 	m_ndt.setInputSource(pt4NdtFilter);
 	// 	PointCloud<PointXYZI> output;
@@ -230,19 +269,32 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	// 	Eigen::Matrix4d ndt_pose = m_ndt.getFinalTransformation().cast<double>();
 
 	static int g_nlocateInd = 0;
-// 	char szSave[1024] = {0};
-// 	sprintf_s(szSave, 1024, "%s%06dMap.pcd", m_szLogPath.c_str(), g_nlocateInd);
-// 	cout << szSave << endl;
-// 	pcl::io::savePCDFileBinary(szSave, *pt4NdtMappingFilter);
-// 	sprintf_s(szSave, 1024, "%s%06dMatch.pcd", m_szLogPath.c_str(), g_nlocateInd);
-// 	cout << szSave << endl;
-// 	pcl::io::savePCDFileBinary(szSave, *ptGuess);
-// 	sprintf_s(szSave, 1024, "%s%06dResult.pcd", m_szLogPath.c_str(), g_nlocateInd);
-// 	cout << szSave << endl;
-//	pcl::io::savePCDFileBinary(szSave, output);
+	char szSave[1024] = {0};
+	sprintf_s(szSave, 1024, "%s%06dMap.pcd", m_szLogPath.c_str(), g_nlocateInd);
+	if (pt4NdtMappingFilter->size() > 0)
+	{
+		WriteLocationLog(szSave);
+		pcl::io::savePCDFileBinary(szSave, *pt4NdtMappingFilter);
+	}
 
-	cout << "guess_pose" << guess_pose << endl;
-	cout << "ndt result" << ndt_pose << endl;
+	sprintf_s(szSave, 1024, "%s%06dMatch.pcd", m_szLogPath.c_str(), g_nlocateInd);
+	if (ptGuess->size() > 0)
+	{
+		WriteLocationLog(szSave);
+		pcl::io::savePCDFileBinary(szSave, *ptGuess);
+	}
+
+  	sprintf_s(szSave, 1024, "%s%06dResult.pcd", m_szLogPath.c_str(), g_nlocateInd);
+	if (output.size() > 0)
+	{
+		WriteLocationLog(szSave);
+		pcl::io::savePCDFileBinary(szSave, output);
+	}
+
+	szTemp.str("");
+	szTemp << guess_pose.inverse()*ndt_pose;
+	sprintf_s(szLogOut, 1024, "Corrected pose: %s", szTemp.str().c_str());
+	WriteLocationLog(szLogOut);
 
 	m_PoseDr.push_back(tf);
 	m_PoseInMap.push_back(ndt_pose);
@@ -254,7 +306,11 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 		POSE_DATA pose_data_guess = Tf2PoseData(guess_pose, pt->header.stamp);
 		POSE_DATA pose_data_ndt = Tf2PoseData(ndt_pose, pt->header.stamp);
 		int nRt = 1;
+		sprintf_s(szLogOut, 1024, "Enter call back");
+		WriteLocationLog(szLogOut);
 		m_result_callback(pt4NdtMappingFilter, ptGuess, pose_data_guess, pose_data_ndt ,nRt);
+		sprintf_s(szLogOut, 1024, "Leave call back");
+		WriteLocationLog(szLogOut);
 	}
 
 	return 1;
@@ -263,7 +319,7 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 int CLocationOpr::FilterPointCloud(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_in,
 								   pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_out)
 {
-	float fLeafSize = 0.2;
+	float fLeafSize = 1.0;
 	pcl::PointCloud<pcl::PointXYZI> temp;
 	pcl::VoxelGrid<pcl::PointXYZI> vg;
 	vg.setInputCloud(pt_in);
@@ -277,6 +333,21 @@ int CLocationOpr::FilterPointCloud(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_in,
 	// 	PointCloud<PointXYZI>::Ptr cloud_filtered(new PointCloud<PointXYZI>);
 	// 	sor.filter (*pt_out);
 
+	return 1;
+}
+
+int CLocationOpr::WriteLocationLog(char* pszLog)
+{
+	cout << string(pszLog) << endl;
+	if (m_fsLocation.is_open())
+	{
+		string strTime = boost::posix_time::to_iso_string(boost::get_system_time());	//log
+		m_fsLocation << strTime << "*" << pszLog << endl;
+	}
+	else
+	{
+		cout << "Write log failed! m_fsLocation.is_open() == false" << endl;
+	}
 	return 1;
 }
 
@@ -354,7 +425,7 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 	}
 	else if (nImuRtn == -1)
 	{
-		std::cout << "GetImuDataByTime too old::;   LOST LIDAR DATA!!!!!" << std::endl;
+//		std::cout << "GetImuDataByTime too old::;   LOST LIDAR DATA!!!!!" << std::endl;
 		return;
 	}
 	else if (nImuRtn == 0)
@@ -367,7 +438,7 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 			nImuRtn = GetImuDataByTime(pt->header.stamp, gpsData);
 			if (nSleepMaxCont >= 10)
 			{
-				printf("GetImuDataByTime == 0 :: nSleepMaxCont >= 10 LOST LIDAR DATA!!!!!");
+				printf("GetImuDataByTime == 0 :: nSleepMaxCont >= 10 LOST LIDAR DATA!!!!!\n");
 				return;
 			}
 // 			printf("GetImuDataByTime too new.. imu buf size:%d lidar time:%lld: imu time:%lld-%lld, sleep cont:%d\n",
@@ -400,7 +471,13 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 
 	pcl::transformPointCloud(mapT, mapT, m_Calib);
 
-	if (m_MapOpr.AddFrameByGps_QueueType(mapT.makeShared(), gpsData) < 0)
+	int nLocalMapRt = m_MapOpr.AddFrameByGps_QueueType(mapT.makeShared(), gpsData);
+	if (m_PoseDr.size() <= 0)//获取局部地图的初始位置
+	{
+		m_MapOpr.GetLastTf(m_LocalMapTf);
+		m_PoseDr.push_back(m_LocalMapTf);
+	}
+	if (nLocalMapRt < 0)
 	{
 		return;
 	}
@@ -417,19 +494,6 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 		m_bLocalMapIsReady = true;
 		m_LocalMapLock.unlock();
 		cout << "Local map refresh!..." << endl;
-
-// 		PointCloud<PointXYZI> pttt;
-// 		for (unsigned int i = 0; i < 1000000 && i < m_LocalMap.size(); i++)
-// 		{
-// 			pttt.push_back(m_LocalMap[i]);
-// 		}
-// 		char szMatchDataPath[1024] = {0};
-// 		sprintf_s(szMatchDataPath, 1024, "%sSegPoints%06d.pcd", m_szLogPath.c_str()
-// 			,m_nMapInd);
-// 		cout << "point cont:" << m_LocalMap.size() << endl;
-// 		cout << szMatchDataPath << endl;
-// 		pcl::io::savePCDFileBinary(szMatchDataPath, m_LocalMap);
-// 		cout << "save finish... " << endl;
 
 		m_nMapInd++;
 	}
@@ -585,7 +649,7 @@ int CLocationOpr::FeedVelodynePack(PCAP_DATA* pBuf)
 	static int nlidar_feed = 0;
 	if (nlidar_feed%2000 == 0)
 	{
-		printf("lidar feed data time stamp:%.6f\n", pData->gps_second);
+//		printf("lidar feed data time stamp:%.6f\n", pData->gps_second);
 	}
 	nlidar_feed++;
 	m_VelodyneOpr.enqueueHDLPacket(&(m_szVelBuf[0]), 1214);

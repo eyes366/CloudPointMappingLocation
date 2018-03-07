@@ -63,6 +63,7 @@ public:
 	int Stop();
 
 private:
+	int WriteLocationLog(char* pszLog);
 	POSE_DATA Tf2PoseData(Eigen::Matrix4d& tf, uint64_t lidar_time);
 	int NearestKnnSearch(pcl::PointXYZ& point_in, pcl::PointXYZ& point_out, int* id_out=0, float* fSquaredDist_out=0);
 	void FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& pt, float start, float end);
@@ -99,6 +100,7 @@ private:
 	pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> m_ndt;
 	pcl::PointCloud<pcl::PointXYZI>::Ptr m_pt4NdtMappingFilter;
 	std::string m_szLogPath;
+	std::ofstream m_fsLocation;
 };
 
 
