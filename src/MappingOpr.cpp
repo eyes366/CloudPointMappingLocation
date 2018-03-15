@@ -1,6 +1,13 @@
 #include <iomanip>
+#include <iostream>
+#include <string>
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 #include "vlp_grabber_.h"
 #include "hdl_grabber_.h"
 #include "MappingOpr.h"
@@ -36,8 +43,8 @@ CMappingOpr::CMappingOpr()
 // 	m_Calib = calib*tt;
 
 	m_MapOpr.m_dRepeatAvoidDist = 0.00001;// 0.00001m/0.0005s=0.02m/s=0.07km/h
-	m_MapOpr.m_dMapSegmentDist = 20.0;
-	m_MapOpr.m_dQueueDist = 20.0;
+	m_MapOpr.m_dMapSegmentDist = 5.0;
+	m_MapOpr.m_dQueueDist = 5.0;
 	m_fLeafSize = 0.5;
 }
 
@@ -55,8 +62,46 @@ int CMappingOpr::StartMapping(std::string szDataPath)
 	{
 		m_szDataPath = szDataPath;
 	}
+
+	string szNavFilePath, szLidarFilePath;
+	boost::filesystem::path full_path(m_szDataPath, boost::filesystem::native);
+	if (boost::filesystem::exists(full_path))
+	{
+		boost::filesystem::directory_iterator item_begin(full_path);
+		boost::filesystem::directory_iterator item_end;
+		for (; item_begin != item_end; item_begin++)
+		{
+			if (!boost::filesystem::is_directory(*item_begin))
+			{
+				string file_path_name = item_begin->path().string();
+				int nPos = file_path_name.find(".vel32");
+				if (nPos > 0 )
+				{
+					szLidarFilePath = file_path_name;
+				}
+				nPos = file_path_name.find(".nav");
+				if (nPos > 0)
+				{
+					szNavFilePath = file_path_name;
+				}
+			}
+		}
+	}
+	else
+	{
+		return -1;
+	}
+
+	cout << "nav: " << szNavFilePath << endl;
+	cout << "lidar: " << szLidarFilePath << endl;
+	if (szLidarFilePath == "" || szNavFilePath == "")
+	{
+		cout << "File not found!!!" << endl;
+		return -1;
+	}
+
 	cout << "Loading nav data..." << endl;
-	m_ImuOpr.ReadFile(m_szDataPath+"nav.nav");
+	m_ImuOpr.ReadFile(szNavFilePath);
 //	m_ImuOpr.ReadFile(m_szDataPath+"imu.txt");
 	cout << "Finish loading nav data..." << endl;
 	m_nMapInd = 0;
@@ -71,7 +116,7 @@ int CMappingOpr::StartMapping(std::string szDataPath)
 	VelParam.nDevType = 1;
 	VelParam.nReadType = 1;
 	VelParam.nDataFetchType = 1;
-	VelParam.szPcapPath = m_szDataPath + "test.vel32";//"D:\\MyData\\data\\test20180222\\laser_2.pcap";//;
+	VelParam.szPcapPath = szLidarFilePath;// m_szDataPath + "test.vel32";
 	CVelodyneOpr VelOpr;
 	m_VelodyneOpr.Init(VelParam);
 	VelodyneCallBackSweep callback_sweep = boost::bind(&CMappingOpr::sweepScan, this, _1);
@@ -157,10 +202,17 @@ void CMappingOpr::sectorScan(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& pt
 	{
 		PointCloud<PointXYZI> map, mapFilter;
 		m_MapOpr.GetMap(map);
-		pcl::VoxelGrid<pcl::PointXYZI> sor;
-		sor.setInputCloud (map.makeShared());
-		sor.setLeafSize (m_fLeafSize, m_fLeafSize, m_fLeafSize);
-		sor.filter (mapFilter);
+
+// 		pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
+// 		sor.setInputCloud(map.makeShared());
+// 		sor.setMeanK(50);
+// 		sor.setStddevMulThresh(1.0);
+// 		sor.filter();
+
+		pcl::VoxelGrid<pcl::PointXYZI> vg;
+		vg.setInputCloud (map.makeShared());
+		vg.setLeafSize (m_fLeafSize, m_fLeafSize, m_fLeafSize);
+		vg.filter (mapFilter);
 //		mapFilter = map;
 		std::cout << "Point cont filtered!" << mapFilter.size() << std::endl;
 		double dCurX, dCurY, dCurZ, dCurMile;

@@ -19,13 +19,13 @@ struct VelodyneDataReadParam
 		nDevType = 0;
 		nReadType = 0;
 		nDataFetchType = 0;
-		bool bUseExternalCallBack = false;
+		bUseExternalCallBack = false;
 		nPort = 0;
 	}
 	int nDevType;	//0:VLP-16 1:HDL-32
 	int nReadType;	//0:From EtherNet 1:From pcap
 	int nDataFetchType;	//0:queue By time 1:Continue wait
-	int bUseExternalCallBack;	//使用外部数据回掉
+	bool bUseExternalCallBack;	//使用外部数据回掉
 	std::string szPcapPath;
 	std::string szIp;
 	int nPort;

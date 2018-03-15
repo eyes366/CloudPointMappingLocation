@@ -52,6 +52,7 @@
 #include <pcap.h>
 #endif // #ifdef HAVE_PCAP
 //#include "GPRMCInfo.h"
+#include "CommonHeader.h"
 
 double *pcl::HDLGrabber::cos_lookup_table_ = NULL;
 double *pcl::HDLGrabber::sin_lookup_table_ = NULL;
@@ -797,13 +798,6 @@ pcl::HDLGrabber::readPacketsFromPcap ()
   }
 }
 
-struct PCAP_DATA
-{
-	int16_t    gps_week;
-	double     gps_second;
-	uint8_t    data[1206];
-};
-
 void
 pcl::HDLGrabber::readPacketsFromLeadorLog()
 {
@@ -811,6 +805,7 @@ pcl::HDLGrabber::readPacketsFromLeadorLog()
 	if (!fs.is_open())
 	{
 		std::cout << "readPacketsFromLeadorLog::Open file log failed!!!" << std::endl;
+		std::cout << pcap_file_name_ << std::endl;
 		getchar();
 	}
 	int nDataLen = sizeof(PCAP_DATA);

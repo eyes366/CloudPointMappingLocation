@@ -13,20 +13,7 @@
 #include "LocationOprAPI.h"
 
 #define LOCATION_IMU_MAX_SIZE 400	//缓存400frames的imu数据
-
-// struct LocationParam
-// {
-// 	LocationParam()
-// 	{
-// 		dLocalMapRange = 50.0;	//局部地图长度
-// 		dSegmentDist = 5.0;		//局部地图准备间隔距离
-// //		dMatchRadius = 50.0;	
-// 	}
-// 	std::string szMapDir;
-// 	double dLocalMapRange;
-// 	double dSegmentDist;
-// //	double dMatchRadius;
-// };
+#define TRACK_RESULT_OUTPUT_HZ 10	//轨迹输出频率
 
 struct MapInfo
 {
@@ -52,27 +39,36 @@ public:
 	~CLocationOpr();
 
 	int Init(LocationAPIParam Param);
+	LocationAPIParam GetParam();
 
 	void SetResultCallBack(FunctionResultCallBack result);
+	void SetTrackCallBack(FunctionTrackCallBack track);
 
 	int StartLocate(POSE_DATA& init_pose);
+	bool IsRunning();
 
-	int FeedVelodynePack(PCAP_DATA* pBuf);
-	int FeedImuData(POSE_DATA* pImu);
+	int GetBasePosition(POSE_DATA& base_pose);
+
+	int FeedVelodynePack(const PCAP_DATA* pBuf);
+	int FeedImuData(const POSE_DATA* pImu);
 
 	int Stop();
 
 private:
 	int WriteLocationLog(char* pszLog);
+	int WriteLocalMapLog(char* pszLog);
 	POSE_DATA Tf2PoseData(Eigen::Matrix4d& tf, uint64_t lidar_time);
 	int NearestKnnSearch(pcl::PointXYZ& point_in, pcl::PointXYZ& point_out, int* id_out=0, float* fSquaredDist_out=0);
 	void FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& pt, float start, float end);
 	void FeedImuData_(GnssData& imuData);
 	int FilterPointCloud(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_in,
-		pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_out);
+		pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_out,
+		float fLeafSizeHorizon, float fLeafSizeHeight);
 	int LoadMap();
 	int LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen::Matrix4d& tf);
 	void LocateThread();
+	void TrackThread();
+	void RepeatTrackThread();
 	int GetImuDataByTime(uint64_t nTime, GnssData& imuData);
 	void split(std::string& s, std::string& delim,std::vector< std::string >* ret);
 	LocationAPIParam m_Param;
@@ -89,8 +85,14 @@ private:
 	bool m_bLocalMapIsReady;
 	bool m_bIsRunLocation;
 	FunctionResultCallBack m_result_callback;
+	FunctionTrackCallBack m_track_callback;
+	boost::mutex m_DrTrackLock;
+	boost::mutex m_CorrectTrackLock;
 
 	boost::thread m_thread_Locate;
+	boost::thread m_thread_Track;
+	boost::asio::io_service m_io;
+	boost::asio::deadline_timer m_Timer;
 	std::vector<MapInfo> m_MapInfo;
 	pcl::KdTreeFLANN<pcl::PointXYZ> m_kdtree;
 	pcl::PointCloud<pcl::PointXYZ> m_track;
@@ -101,6 +103,8 @@ private:
 	pcl::PointCloud<pcl::PointXYZI>::Ptr m_pt4NdtMappingFilter;
 	std::string m_szLogPath;
 	std::ofstream m_fsLocation;
+	std::ofstream m_fsLocalMap;
+	std::ofstream m_fsTrack;
 };
 
 

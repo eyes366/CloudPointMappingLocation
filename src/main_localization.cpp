@@ -1,7 +1,15 @@
 #include <pcl\io\pcd_io.h>
+//#include <voxel_grid_.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/approximate_voxel_grid.h>
+#include <pcl/filters/uniform_sampling.h>
+#include <pcl/filters/voxel_grid_occlusion_estimation.h>
+#include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/local_maximum.h>
 #include "LocationOprAPI.h"
 #include "DataSimulator.h"
 //#include "NdtVisual.h"
+//#include "cc_algorithm.h"
 
 using namespace std;
 
@@ -27,28 +35,9 @@ void result_callback(pcl::PointCloud<pcl::PointXYZI>::Ptr& map_cloud,//µØÍ¼µãÔÆ
 
 int main(int argc, char ** argv)
 {
-//	NdtVisual visual;
-// 	pcl::visualization::PCLVisualizer* m_p = new pcl::visualization::PCLVisualizer("Test");
-// 	m_p->addCoordinateSystem(1.0,"m_vp1");
-//	pcl::PointCloud<pcl::PointXYZI> pc;
-//	pcl::io::loadPCDFile("D:\\MyData\\20180301\\own\\20180301-1\\map_imu\\000044.pcd", pc);
-//	visual.DisplayCloudPoints(pc.makeShared(), pc.makeShared());
-//	visual.DisplayCloudPoints(pc.makeShared(),pc.makeShared());
-//	pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler0 =
-// 		new pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZI> (
-// 		pc.makeShared(), 100, 100, 100);
-// 	m_p->addPointCloud(pc.makeShared(), *handler0, "map");
-// 	delete handler0;
-//	while (true)
-//	{
-//		boost::thread::sleep(boost::get_system_time() + boost::posix_time::milliseconds(5000)); 
-// 		m_p->spinOnce(1);
-//	}
-//	m_p->spin();
-//	boost::thread::sleep(boost::get_system_time() + boost::posix_time::hours(24)); 
-
 	LocationAPIParam LocatorParam;
-	LocatorParam.szMapDir = "D:\\MyData\\20180301\\own\\20180301-2\\map\\";
+//	LocatorParam.szMapDir = "D:\\MyData\\20180301\\own\\20180301-2\\map\\";
+	LocatorParam.szMapDir = "D:\\MyData\\20180308\\own\\2018-03-08-11-10-01-2\\map\\";
 	CLocationOprAPI Locator;
 	Locator.Init(LocatorParam);
 	Locator.SetResultCallBack(result_callback);

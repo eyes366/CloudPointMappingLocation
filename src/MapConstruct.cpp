@@ -105,9 +105,24 @@ int CMapConstruct::GetBaseGpsLocation(GnssData& BaseGps)
 // 	return -1/*m_PtList.size()*/;
 // }
 
+void CMapConstruct::SetBaseGnssPos(double dLat, double dLong, double dAlt)
+{
+	m_dBaseLatitude = dLat;
+	m_dBaseLongitude = dLong;
+	m_dBaseAltitude = dAlt;
+	m_bIsBaseSet = true;
+}
+
 int CMapConstruct::AddFrameByGps_QueueType(pcl::PointCloud<pcl::PointXYZI>::Ptr& points,
 										   GnssData imu_data)
 {
+	if (!m_bIsBaseSet)//如果没有设置过坐标原点，则用第一帧gnss作为原点
+	{
+		m_dBaseLatitude = imu_data.dLatitude;
+		m_dBaseLongitude = imu_data.dLongitude;
+		m_dBaseAltitude = imu_data.dAltitude;
+		m_bIsBaseSet = true;
+	}
 	if (m_poseImuListHistory.size() > 0)
 	{
 		GnssData last_imu = m_poseImuListHistory.back();
@@ -129,11 +144,11 @@ int CMapConstruct::AddFrameByGps_QueueType(pcl::PointCloud<pcl::PointXYZI>::Ptr&
 	}
 	m_poseImuListHistory.push_back(imu_data);
 
-	GnssData first_imu = m_poseImuListHistory.front();
-	double dDistY = 111319.55*(imu_data.dLatitude - first_imu.dLatitude);
-	double dDistX = 111319.55*(imu_data.dLongitude - first_imu.dLongitude)*
-		cos(first_imu.dLatitude/180.0*3.141592654);
-	double dDistZ = imu_data.dAltitude - first_imu.dAltitude;
+//	GnssData first_imu = m_poseImuListHistory.front();
+	double dDistY = 111319.55*(imu_data.dLatitude - m_dBaseLatitude/*first_imu.dLatitude*/);
+	double dDistX = 111319.55*(imu_data.dLongitude - m_dBaseLongitude/*first_imu.dLongitude*/)*
+		cos(m_dBaseLatitude/*first_imu.dLatitude*//180.0*3.141592654);
+	double dDistZ = imu_data.dAltitude - m_dBaseAltitude/*first_imu.dAltitude*/;
 	Eigen::Matrix4d tf;
 	if (imu_data.nPoseType == 0)//Euler
 	{

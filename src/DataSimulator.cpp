@@ -41,7 +41,7 @@ int CDataSimulator::StartSimulator(std::string szLogDir, uint64_t nStartTime)
 
 void CDataSimulator::LidarReplayThread()
 {
-	std::ifstream fs((m_szLogDir+string("test.vel16")).c_str(),
+	std::ifstream fs((m_szLogDir+string("test.vel32")).c_str(),
 		std::ios::binary);
 	if (!fs.is_open())
 	{

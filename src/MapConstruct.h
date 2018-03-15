@@ -19,6 +19,10 @@ public:
 //        m_nLatestCapacity = 20;
 		m_dMapSegmentDist = 10.0;//每移动m_dMapSegmentDist距离，则输出一次地图
 		m_dQueueDist = 50.0;//每一次地图包含的范围
+		m_dBaseLatitude = 0.0;
+		m_dBaseLongitude = 0.0;
+		m_dBaseAltitude = 0.0;
+		m_bIsBaseSet = false;
     }
 
 //     int AddFrame(pcl::PointCloud<pcl::PointXYZI>::Ptr& points,
@@ -27,6 +31,7 @@ public:
 //     int AddFrameByGps_CleanType(pcl::PointCloud<pcl::PointXYZI>::Ptr& points,
 //                  GnssData imu_data);
 	//达到指定距离m_dMapSegmentDist，则返回地图，并更新局部地图
+	void SetBaseGnssPos(double dLat, double dLong, double dAlt);
 	int AddFrameByGps_QueueType(pcl::PointCloud<pcl::PointXYZI>::Ptr& points,
 		GnssData imu_data);
     int GetMap(pcl::PointCloud<pcl::PointXYZI>& points);
@@ -38,6 +43,11 @@ public:
 //	unsigned int m_nLatestCapacity;
 	double m_dMapSegmentDist;
 	double m_dQueueDist;
+
+	double m_dBaseLatitude;
+	double m_dBaseLongitude;
+	double m_dBaseAltitude;
+	bool m_bIsBaseSet;
 
 private:
     pcl::PointCloud<pcl::PointXYZI> m_PtList;
