@@ -43,6 +43,11 @@ add_definitions(${PCAP_DEFINES})
 
 include_directories(./src)
 
+#main_evaluation
+add_executable(main_evaluation ./src/main_evaluation.cpp
+								./src/ImuNav.h
+								./src/ImuNav.cpp)
+
 #main_matching
 add_executable(main_matching ./src/main_matching.cpp)
 target_link_libraries(main_matching 
