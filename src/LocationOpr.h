@@ -105,6 +105,7 @@ private:
 	std::ofstream m_fsLocation;
 	std::ofstream m_fsLocalMap;
 	std::ofstream m_fsTrack;
+	Eigen::Affine3f m_calib_imu0_imu1;
 };
 
 

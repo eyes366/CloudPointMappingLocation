@@ -28,28 +28,60 @@ int CLocationOpr::Init(LocationAPIParam Param)
 
 	m_nMapInd = 0;
 
-	Eigen::Affine3f calib =
-		(Eigen::Translation3f(Eigen::Vector3f(0.6/*-0.186986*/, -0.1/*-1.376150*/, -1.376150)) *//0.6 -0.1
+	m_calib_imu0_imu1 =
+		(Eigen::Translation3f(Eigen::Vector3f(0.786986, 1.276150, 0.0)) *//0.6 -0.1
+			Eigen::AngleAxisf(0, Eigen::Vector3f::UnitZ()) *
+			Eigen::AngleAxisf(0, Eigen::Vector3f::UnitX()) *
+			Eigen::AngleAxisf(0, Eigen::Vector3f::UnitY()));
+
+	Eigen::Affine3f calib_32_imu0 =
+		(Eigen::Translation3f(Eigen::Vector3f(-0.186986, -1.376150, -1.376150)) *//0.6 -0.1
 			Eigen::AngleAxisf(-1.0*-1.563736, Eigen::Vector3f::UnitZ()) *
 			Eigen::AngleAxisf(3.163187, Eigen::Vector3f::UnitX()) *
 			Eigen::AngleAxisf(-0.790054, Eigen::Vector3f::UnitY()));
-
 	Eigen::Matrix4f tt;
 	tt << 0, 0, -1, 0,
 		0, 1, 0, 0,
 		1, 0, 0, 0,
 		0, 0, 0, 1;
-	m_Calib = calib*tt;
+	calib_32_imu0 = calib_32_imu0 * tt;
 
 	if (m_Param.nLidarType == 0)//vlp-16参数
 	{
-		Eigen::Isometry3f calib32_16;
-		calib32_16.matrix() << 3.5603612272025249e-002, -9.9904256492177179e-001, 2.5423144331705675e-002, 3.4874775702507222e-003,
+		Eigen::Isometry3f calib_32_16;
+		calib_32_16.matrix() << 3.5603612272025249e-002, -9.9904256492177179e-001, 2.5423144331705675e-002, 3.4874775702507222e-003,
 			6.9741382768883076e-001, 4.3058732817540829e-002, 7.1537395708577567e-001, 2.9969301888692856e-001,
 			-7.1578372134437152e-001, -7.7394445973259299e-003, 6.9827914565432059e-001, -2.7290447621211117e-001,
 			0., 0., 0., 1.;
-		m_Calib = m_Calib*calib32_16.inverse();
+		m_Calib = m_calib_imu0_imu1 * calib_32_imu0 * calib_32_16.inverse();
 	}
+	else
+	{
+		m_Calib = m_calib_imu0_imu1 * calib_32_imu0;
+	}
+
+// 	Eigen::Affine3f calib =
+// 		(Eigen::Translation3f(Eigen::Vector3f(0.6/*-0.186986*/, -0.1/*-1.376150*/, -1.376150)) *//0.6 -0.1
+// 			Eigen::AngleAxisf(-1.0*-1.563736, Eigen::Vector3f::UnitZ()) *
+// 			Eigen::AngleAxisf(3.163187, Eigen::Vector3f::UnitX()) *
+// 			Eigen::AngleAxisf(-0.790054, Eigen::Vector3f::UnitY()));
+// 
+// 	Eigen::Matrix4f tt;
+// 	tt << 0, 0, -1, 0,
+// 		0, 1, 0, 0,
+// 		1, 0, 0, 0,
+// 		0, 0, 0, 1;
+// 	m_Calib = calib*tt;
+
+// 	if (m_Param.nLidarType == 0)//vlp-16参数
+// 	{
+// 		Eigen::Isometry3f calib32_16;
+// 		calib32_16.matrix() << 3.5603612272025249e-002, -9.9904256492177179e-001, 2.5423144331705675e-002, 3.4874775702507222e-003,
+// 			6.9741382768883076e-001, 4.3058732817540829e-002, 7.1537395708577567e-001, 2.9969301888692856e-001,
+// 			-7.1578372134437152e-001, -7.7394445973259299e-003, 6.9827914565432059e-001, -2.7290447621211117e-001,
+// 			0., 0., 0., 1.;
+// 		m_Calib = m_Calib*calib32_16.inverse();
+// 	}
 
 	m_MapOpr.m_dRepeatAvoidDist = 0.0001;// 0.0001m/0.0005s=0.2m/s=0.7km/h
 	m_MapOpr.m_dMapSegmentDist = m_Param.dSegmentDist/*5.0*/;
@@ -151,10 +183,10 @@ int CLocationOpr::StartLocate(POSE_DATA& init_pose)
 	cout << "init_tf:" << endl;
 	cout << init_tf << endl;
 	m_PoseInMap.push_back(init_tf);//设置在地图坐标系的中初始位置
-	m_fsTrack << m_PoseInMap.back()(0, 3) << " ";
-	m_fsTrack << m_PoseInMap.back()(1, 3) << " ";
-	m_fsTrack << m_PoseInMap.back()(2, 3) << endl;
-	m_fsTrack.flush();
+// 	m_fsTrack << m_PoseInMap.back()(0, 3) << " ";
+// 	m_fsTrack << m_PoseInMap.back()(1, 3) << " ";
+// 	m_fsTrack << m_PoseInMap.back()(2, 3) << endl;
+// 	m_fsTrack.flush();
 
 	//设置局部地图的原点，与地图原点保持一致
 	m_MapOpr.SetBaseGnssPos(ori_positon.dRefLatitude, ori_positon.dRefLongitude, ori_positon.dRefAltitude);
@@ -286,7 +318,8 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	pt4NdtMapping->reserve(2000000);
 	PointCloud<PointXYZI>::Ptr pt4NdtMappingFilter(new PointCloud<PointXYZI>);
 
-	sprintf_s(szLogOut, 1024, "Lidar gps time:%lld", pt->header.stamp);
+	static int g_nlocateInd = 0;
+	sprintf_s(szLogOut, 1024, "Lidar gps time:%lld nlocateInd:%06d", pt->header.stamp, g_nlocateInd);
 	WriteLocationLog(szLogOut);
 
 	Eigen::Matrix4d delta_pose = m_PoseDr.back().inverse().matrix()*tf;//相对于上一次匹配的相对变化量
@@ -364,7 +397,6 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	sprintf_s(szLogOut, 1024, "pt4NdtMappingFilter: %d", pt4NdtMappingFilter->size());
 	WriteLocationLog(szLogOut);
 
-	static int g_nlocateInd = 0;
 	char szSave[1024] = { 0 };
 	sprintf_s(szSave, 1024, "%s%06dMap.pcd", m_szLogPath.c_str(), g_nlocateInd);
 	if (pt4NdtMappingFilter->size() > 0)
@@ -453,17 +485,11 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	m_PoseDr.push_back(tf);
 	m_PoseInMap.push_back(ndt_pose);
 	m_CorrectTrackLock.unlock();
-	m_fsTrack << m_PoseInMap.back()(0, 3) << " ";
-	m_fsTrack << m_PoseInMap.back()(1, 3) << " ";
-	m_fsTrack << m_PoseInMap.back()(2, 3) << endl;
-	m_fsTrack.flush();
 
-	g_nlocateInd++;
-
+	POSE_DATA pose_data_guess = Tf2PoseData(guess_pose, pt->header.stamp);
+	POSE_DATA pose_data_ndt = Tf2PoseData(ndt_pose, pt->header.stamp);
 	if (!m_result_callback.empty())
 	{
-		POSE_DATA pose_data_guess = Tf2PoseData(guess_pose, pt->header.stamp);
-		POSE_DATA pose_data_ndt = Tf2PoseData(ndt_pose, pt->header.stamp);
 		int nRt = 1;
 		sprintf_s(szLogOut, 1024, "Enter call back");
 		WriteLocationLog(szLogOut);
@@ -471,6 +497,24 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 		sprintf_s(szLogOut, 1024, "Leave call back");
 		WriteLocationLog(szLogOut);
 	}
+
+	char szTrackLog[1024] = { 0 };
+	sprintf_s(szTrackLog, 1024, "%d %.6f %.3f %.3f %.3f %.7f %.7f %.3f",
+		g_nlocateInd,
+		double(pt->header.stamp) / 1000000.0,
+		m_PoseInMap.back()(0, 3),
+		m_PoseInMap.back()(1, 3),
+		m_PoseInMap.back()(2, 3),
+		pose_data_ndt.pos[0],
+		pose_data_ndt.pos[1],
+		pose_data_ndt.pos[2]);
+	m_fsTrack << szTrackLog << endl;
+// 	m_fsTrack << m_PoseInMap.back()(0, 3) << " ";
+// 	m_fsTrack << m_PoseInMap.back()(1, 3) << " ";
+// 	m_fsTrack << m_PoseInMap.back()(2, 3) << endl;
+	m_fsTrack.flush();
+
+	g_nlocateInd++;
 
 	return 1;
 }
@@ -538,19 +582,20 @@ POSE_DATA CLocationOpr::Tf2PoseData(Eigen::Matrix4d& tf, uint64_t lidar_time)
 	{
 		return out;
 	}
+	Eigen::Matrix4d tf_ = tf*m_calib_imu0_imu1.matrix().cast<double>();//imu1位姿转imu0位姿
 	MapInfo gps_base = m_MapInfo.front();
-	Eigen::Matrix3d rot = tf.block(0, 0, 3, 3).matrix();
+	Eigen::Matrix3d rot = tf_.block(0, 0, 3, 3).matrix();
 	Eigen::Quaterniond q(rot);
 	out.quat[0] = q.w();
 	out.quat[1] = q.x();
 	out.quat[2] = q.y();
 	out.quat[3] = q.z();
-	double dX = tf(0, 3);
-	double dY = tf(1, 3);
-	double dZ = tf(2, 3);
-	double dLat1 = gps_base.dLatitude + dY / 111319.55;
-	double dLon1 = gps_base.dLongitude + dX / 111319.55 / cos(gps_base.dLatitude / 180.0*3.1415926);
-	double dAlt1 = gps_base.dAltitude + dZ;
+	double dX = tf_(0, 3);
+	double dY = tf_(1, 3);
+	double dZ = tf_(2, 3);
+	double dLat1 = gps_base.dRefLatitude + dY / 111319.55;
+	double dLon1 = gps_base.dRefLongitude + dX / 111319.55 / cos(gps_base.dRefLatitude / 180.0*3.1415926);
+	double dAlt1 = gps_base.dRefAltitude + dZ;
 	out.pos[0] = dLat1;
 	out.pos[1] = dLon1;
 	out.pos[2] = dAlt1;
@@ -681,10 +726,10 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 		if (m_MapOpr.GetMap(m_LocalMap) <= 0 ||
 			m_MapOpr.GetLastTf(m_LocalMapTf) <= 0)
 		{
-			m_LocalMap.header = pt->header;//传递时间戳
 			m_LocalMapLock.unlock();
 			return;
 		}
+		m_LocalMap.header = pt->header;//传递时间戳
 		m_bLocalMapIsReady = true;
 		m_LocalMapLock.unlock();
 		cout << "Local map refresh!..." << endl;

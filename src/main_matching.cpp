@@ -6,8 +6,11 @@
 #include <pcl/registration/ndt.h>
 #include <Eigen/Core>
 #include <fstream>
+#include <iostream>
 
 using namespace pcl;
+using namespace std;
+
 using namespace std;
 
 int main(int argc, char ** argv)
@@ -40,7 +43,7 @@ int main(int argc, char ** argv)
 	ndt.setTransformationEpsilon(0.01);
 	ndt.setStepSize(2.0);//3.0
 	ndt.setResolution(2.0);//4.0
-	ndt.setMaximumIterations(50);
+	ndt.setMaximumIterations(25);
 	ndt.setInputSource(match_without_guess);
 	ndt.setInputTarget(map);
 	PointCloud<PointXYZI>::Ptr out(new PointCloud<PointXYZI>);
@@ -60,7 +63,7 @@ int main(int argc, char ** argv)
 	ndt_.setTransformationEpsilon(0.01);
 	ndt_.setStepSize(2.0);//3.0
 	ndt_.setResolution(2.0);//4.0
-	ndt_.setMaximumIterations(50);
+	ndt_.setMaximumIterations(25);
 	ndt_.setInputSource(match_with_guess);
 	ndt_.setInputTarget(map_);
 	PointCloud<PointXYZI>::Ptr out_(new PointCloud<PointXYZI>);

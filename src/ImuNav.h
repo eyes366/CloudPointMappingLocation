@@ -15,8 +15,9 @@ public:
 
 	int GetDataByTime(uint64_t nTime, GnssData& data);
 
+	void split(std::string& s, std::string& delim, std::vector< std::string >* ret);
+
 private:
-	void split(std::string& s, std::string& delim,std::vector< std::string >* ret);
 	std::vector<GnssData> m_Data;
 	int m_nSearchInd;
 };

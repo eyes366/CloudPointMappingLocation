@@ -85,12 +85,15 @@ int CImuNav::GetDataByTime(uint64_t nTime, GnssData& data)
 {
 	if (m_Data.size() <= 0)
 	{
-		return -1;
+		return -2;
 	}
-	if (nTime > m_Data.back().dSecInWeek ||
-		nTime < m_Data.front().dSecInWeek)
+	if (nTime <= m_Data.front().dSecInWeek)//请求的数据too old
 	{
 		return -1;
+	}
+	if (nTime >= m_Data.back().dSecInWeek)//请求的数据too new
+	{
+		return 0;
 	}
 
 	for (unsigned int i = m_nSearchInd; i+1 < m_Data.size(); i++)
