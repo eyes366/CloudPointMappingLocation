@@ -9,6 +9,7 @@ int main(int argc, char ** argv)
 {
 	string szNavFilePath(argv[1]);
 	string szLocationResult(argv[2]);
+	szLocationResult += "\\";
 	cout << "szNavFilePath: " << szNavFilePath << endl;
 	cout << "szLocationResult: " << szLocationResult << endl;
 

@@ -15,6 +15,44 @@ using namespace std;
 
 int main(int argc, char ** argv)
 {
+	double dRoll = -10.0;
+	double dPitch = -20.0;
+	double dHeading = 150;
+	Eigen::Matrix4d calib =
+		(Eigen::Translation3d(Eigen::Vector3d(-0.186986, -1.376150, -1.376150)) *//0.6 -0.1
+			Eigen::AngleAxisd(/*-1.0 * */dHeading / 180.0 * 3.141592654, Eigen::Vector3d::UnitZ()) *//yaw
+			Eigen::AngleAxisd(dRoll / 180.0 * 3.141592654, Eigen::Vector3d::UnitX()) *//roll
+			Eigen::AngleAxisd(dPitch / 180.0 * 3.141592654, Eigen::Vector3d::UnitY())).matrix();//pitch
+	Eigen::Matrix3d rot_mat = calib.block(0, 0, 3, 3);
+	Eigen::Vector3d rot_ = rot_mat.eulerAngles(2, 0, 1);//zxy
+	rot_ = rot_ / 3.141592654 * 180.0;
+	double dRoll_ = rot_(1);
+	double dPitch_ = rot_(2);
+	double dHeading_ = rot_(0);
+	if (dRoll_ >= 90.0)
+	{
+		dRoll_ = -1.0*dRoll_ + 180.0;
+		dHeading_ += 180.0;
+	}
+	if (dRoll_ <= -90.0)
+	{
+		dRoll_ = -1.0*dRoll_ - 180.0;
+		dHeading_ += 180.0;
+	}
+
+	if (dPitch_ >= 90.0)
+	{
+		dPitch_ -= 180.0;
+	}
+	if (dPitch_ <= -90.0)
+	{
+		dPitch_ += 180.0;
+	}
+ 	
+	cout << dRoll_ << " " << dPitch_ << " " << dHeading_ << endl;
+
+	getchar();
+
 	char* szLogPath = argv[2];
 	char szPath[1024] = { 0 };
 	int ind = atoi(argv[1]);

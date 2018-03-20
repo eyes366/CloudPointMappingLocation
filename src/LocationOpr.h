@@ -55,6 +55,8 @@ public:
 	int Stop();
 
 private:
+	Eigen::VectorXd GetCorrectRT(Eigen::Matrix4d correct_pose);
+//	Eigen::VectorXd IsValidCorrectPose(Eigen::Matrix4d correct_pose);
 	int WriteLocationLog(char* pszLog);
 	int WriteLocalMapLog(char* pszLog);
 	POSE_DATA Tf2PoseData(Eigen::Matrix4d& tf, uint64_t lidar_time);
@@ -82,6 +84,7 @@ private:
 	uint8_t m_szVelBuf[1214];
 	Eigen::Affine3f m_Calib;
 	int m_nMapInd;
+	int g_nlocateInd;
 	bool m_bLocalMapIsReady;
 	bool m_bIsRunLocation;
 	FunctionResultCallBack m_result_callback;
@@ -105,6 +108,7 @@ private:
 	std::ofstream m_fsLocation;
 	std::ofstream m_fsLocalMap;
 	std::ofstream m_fsTrack;
+	std::ofstream m_fsCorrectPose;
 	Eigen::Affine3f m_calib_imu0_imu1;
 };
 

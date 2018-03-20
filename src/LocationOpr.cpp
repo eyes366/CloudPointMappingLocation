@@ -12,7 +12,7 @@ using namespace std;
 CLocationOpr::CLocationOpr() :
 	m_pt4NdtMappingFilter(new PointCloud<PointXYZI>),
 	m_io(),
-	m_Timer(m_io, boost::posix_time::milliseconds(1000/TRACK_RESULT_OUTPUT_HZ))
+	m_Timer(m_io, boost::posix_time::milliseconds(1000 / TRACK_RESULT_OUTPUT_HZ))
 {
 	m_bIsRunLocation = false;
 }
@@ -27,6 +27,7 @@ int CLocationOpr::Init(LocationAPIParam Param)
 	m_Param = Param;
 
 	m_nMapInd = 0;
+	g_nlocateInd = 0;
 
 	m_calib_imu0_imu1 =
 		(Eigen::Translation3f(Eigen::Vector3f(0.786986, 1.276150, 0.0)) *//0.6 -0.1
@@ -60,36 +61,36 @@ int CLocationOpr::Init(LocationAPIParam Param)
 		m_Calib = m_calib_imu0_imu1 * calib_32_imu0;
 	}
 
-// 	Eigen::Affine3f calib =
-// 		(Eigen::Translation3f(Eigen::Vector3f(0.6/*-0.186986*/, -0.1/*-1.376150*/, -1.376150)) *//0.6 -0.1
-// 			Eigen::AngleAxisf(-1.0*-1.563736, Eigen::Vector3f::UnitZ()) *
-// 			Eigen::AngleAxisf(3.163187, Eigen::Vector3f::UnitX()) *
-// 			Eigen::AngleAxisf(-0.790054, Eigen::Vector3f::UnitY()));
-// 
-// 	Eigen::Matrix4f tt;
-// 	tt << 0, 0, -1, 0,
-// 		0, 1, 0, 0,
-// 		1, 0, 0, 0,
-// 		0, 0, 0, 1;
-// 	m_Calib = calib*tt;
+	// 	Eigen::Affine3f calib =
+	// 		(Eigen::Translation3f(Eigen::Vector3f(0.6/*-0.186986*/, -0.1/*-1.376150*/, -1.376150)) *//0.6 -0.1
+	// 			Eigen::AngleAxisf(-1.0*-1.563736, Eigen::Vector3f::UnitZ()) *
+	// 			Eigen::AngleAxisf(3.163187, Eigen::Vector3f::UnitX()) *
+	// 			Eigen::AngleAxisf(-0.790054, Eigen::Vector3f::UnitY()));
+	// 
+	// 	Eigen::Matrix4f tt;
+	// 	tt << 0, 0, -1, 0,
+	// 		0, 1, 0, 0,
+	// 		1, 0, 0, 0,
+	// 		0, 0, 0, 1;
+	// 	m_Calib = calib*tt;
 
-// 	if (m_Param.nLidarType == 0)//vlp-16参数
-// 	{
-// 		Eigen::Isometry3f calib32_16;
-// 		calib32_16.matrix() << 3.5603612272025249e-002, -9.9904256492177179e-001, 2.5423144331705675e-002, 3.4874775702507222e-003,
-// 			6.9741382768883076e-001, 4.3058732817540829e-002, 7.1537395708577567e-001, 2.9969301888692856e-001,
-// 			-7.1578372134437152e-001, -7.7394445973259299e-003, 6.9827914565432059e-001, -2.7290447621211117e-001,
-// 			0., 0., 0., 1.;
-// 		m_Calib = m_Calib*calib32_16.inverse();
-// 	}
+	// 	if (m_Param.nLidarType == 0)//vlp-16参数
+	// 	{
+	// 		Eigen::Isometry3f calib32_16;
+	// 		calib32_16.matrix() << 3.5603612272025249e-002, -9.9904256492177179e-001, 2.5423144331705675e-002, 3.4874775702507222e-003,
+	// 			6.9741382768883076e-001, 4.3058732817540829e-002, 7.1537395708577567e-001, 2.9969301888692856e-001,
+	// 			-7.1578372134437152e-001, -7.7394445973259299e-003, 6.9827914565432059e-001, -2.7290447621211117e-001,
+	// 			0., 0., 0., 1.;
+	// 		m_Calib = m_Calib*calib32_16.inverse();
+	// 	}
 
 	m_MapOpr.m_dRepeatAvoidDist = 0.0001;// 0.0001m/0.0005s=0.2m/s=0.7km/h
 	m_MapOpr.m_dMapSegmentDist = m_Param.dSegmentDist/*5.0*/;
 	m_MapOpr.m_dQueueDist = m_Param.dLocalMapRange/*50.0*/;
-// 	if (m_Param.nLidarType == 0)
-// 	{
-// 		m_MapOpr.m_dQueueDist = 5.0;
-// 	}
+	// 	if (m_Param.nLidarType == 0)
+	// 	{
+	// 		m_MapOpr.m_dQueueDist = 5.0;
+	// 	}
 
 	LoadMap();
 	if (m_MapInfo.size() <= 0)
@@ -132,6 +133,7 @@ int CLocationOpr::StartLocate(POSE_DATA& init_pose)
 
 	m_fsLocalMap.open(m_szLogPath + ("LocalMap.txt"));
 	m_fsTrack.open(m_szLogPath + ("Track.txt"));
+	m_fsCorrectPose.open(m_szLogPath + ("CorrectPose.txt"));
 
 	//开启velodyne
 	VelodyneDataReadParam VelParam;
@@ -266,6 +268,12 @@ void CLocationOpr::LocateThread()
 {
 	m_fsLocation.open((m_szLogPath + string("Location.txt")).c_str());
 	char szLogOut[1024] = { 0 };
+	sprintf_s(szLogOut, 1024, "MapDir:%s LidarType:%d LocalMapRange:%.2f SegmentDist:%.2f", 
+		m_Param.szMapDir.c_str(), 
+		m_Param.nLidarType, 
+		m_Param.dLocalMapRange,
+		m_Param.dSegmentDist);
+	WriteLocationLog(szLogOut);
 	sprintf_s(szLogOut, 1024, "Start Locate Thread...");
 	WriteLocationLog(szLogOut);
 	try
@@ -318,7 +326,7 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	pt4NdtMapping->reserve(2000000);
 	PointCloud<PointXYZI>::Ptr pt4NdtMappingFilter(new PointCloud<PointXYZI>);
 
-	static int g_nlocateInd = 0;
+	//	static int g_nlocateInd = 0;
 	sprintf_s(szLogOut, 1024, "Lidar gps time:%lld nlocateInd:%06d", pt->header.stamp, g_nlocateInd);
 	WriteLocationLog(szLogOut);
 
@@ -369,15 +377,15 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 		dForwardDist = 80;
 		dBackWardDist = 120;
 	}
- 	int nForwardSegs = int(dForwardDist/dMapSegDist)+1;
- 	int nBackwardSegs = int(dBackWardDist/ dMapSegDist)+1;
-// 	int nForwardSegs = 2;
-// 	int nBackwardSegs = 3;
-// 	if (m_Param.nLidarType == 0)
-// 	{
-// 		nForwardSegs = 4;
-// 		nBackwardSegs = 6;
-// 	}
+	int nForwardSegs = int(dForwardDist / dMapSegDist) + 1;
+	int nBackwardSegs = int(dBackWardDist / dMapSegDist) + 1;
+	// 	int nForwardSegs = 2;
+	// 	int nBackwardSegs = 3;
+	// 	if (m_Param.nLidarType == 0)
+	// 	{
+	// 		nForwardSegs = 4;
+	// 		nBackwardSegs = 6;
+	// 	}
 	int nStart = nMapInd - nBackwardSegs < 0 ? 0 : nMapInd - nBackwardSegs;
 	int nEnd = nMapInd + nForwardSegs >= m_MapInfo.size() ? m_MapInfo.size() - 1 : nMapInd + nForwardSegs;
 	sprintf_s(szLogOut, 1024, "search ind: %d,%d,%d,%d", nMapInd, nStart, nEnd, m_MapInfo.size());
@@ -392,7 +400,7 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	WriteLocationLog(szLogOut);
 
 	FilterPointCloud(pt4NdtMapping, pt4NdtMappingFilter, 1.f, 0.5f);
-//	(*pt4NdtMappingFilter) = (*pt4NdtMapping);
+	//	(*pt4NdtMappingFilter) = (*pt4NdtMapping);
 
 	sprintf_s(szLogOut, 1024, "pt4NdtMappingFilter: %d", pt4NdtMappingFilter->size());
 	WriteLocationLog(szLogOut);
@@ -430,13 +438,13 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	ndt.setResolution(2.0);//4.0
 	ndt.setMaximumIterations(25/*50*/);
 	ndt.setInputSource(pt4NdtFilter);
-//	ndt.setInputSource(ptGuess);
+	//	ndt.setInputSource(ptGuess);
 	ndt.setInputTarget(pt4NdtMappingFilter);
 	PointCloud<PointXYZI> output;
 	sprintf_s(szLogOut, 1024, "Start align");
 	WriteLocationLog(szLogOut);
 	ndt.align(output, guess_pose.cast<float>());
-//	ndt.align(output);
+	//	ndt.align(output);
 	sprintf_s(szLogOut, 1024, "Finish align");
 	WriteLocationLog(szLogOut);
 	Eigen::Matrix4d ndt_pose = ndt.getFinalTransformation().cast<double>()/**guess_pose*/;
@@ -457,8 +465,20 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	// 	m_ndt.align(output, guess_pose.cast<float>());
 	// 	Eigen::Matrix4d ndt_pose = m_ndt.getFinalTransformation().cast<double>();
 
-	bIsValidLocate = true;// nFinalIter < 50;//判断此次匹配是否有效
-//	bIsValidLocate = false;
+	Eigen::Matrix4d correct_pose = guess_pose.inverse()*ndt_pose;
+	Eigen::VectorXd correct_pose_ = GetCorrectRT(correct_pose);
+	sprintf_s(szLogOut, 1024, "correct T: %.3f, %.3f, %.3f,  R: %.3f, %.3f, %.3f",
+		correct_pose_(0), 
+		correct_pose_(1), 
+		correct_pose_(2), 
+		correct_pose_(3), 
+		correct_pose_(4), 
+		correct_pose_(5));
+	WriteLocationLog(szLogOut);
+
+	bIsValidLocate = (abs(correct_pose_(3)) < 5.0 && abs(correct_pose_(4)) < 5.0 && abs(correct_pose_(5)) < 5.0);
+	//	bIsValidLocate = true;// nFinalIter < 50;//判断此次匹配是否有效
+	//	bIsValidLocate = false;
 	sprintf_s(szLogOut, 1024, "bIsValidLocate:%d", bIsValidLocate);
 	WriteLocationLog(szLogOut);
 
@@ -477,7 +497,7 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 	}
 
 	szTemp.str("");
-	szTemp << guess_pose.inverse()*ndt_pose;
+	szTemp << correct_pose;
 	sprintf_s(szLogOut, 1024, "Corrected pose: %s", szTemp.str().c_str());
 	WriteLocationLog(szLogOut);
 
@@ -493,6 +513,8 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 		int nRt = 1;
 		sprintf_s(szLogOut, 1024, "Enter call back");
 		WriteLocationLog(szLogOut);
+// 		PointCloud<PointXYZI>::Ptr ptOurOri(new PointCloud<PointXYZI>);
+// 		pcl::transformPointCloud(*pt, *ptOurOri, ndt_pose);
 		m_result_callback(pt4NdtMappingFilter, ptGuess, pose_data_guess, pose_data_ndt, nRt);
 		sprintf_s(szLogOut, 1024, "Leave call back");
 		WriteLocationLog(szLogOut);
@@ -509,14 +531,59 @@ int CLocationOpr::LocateWithMap(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt, Eigen:
 		pose_data_ndt.pos[1],
 		pose_data_ndt.pos[2]);
 	m_fsTrack << szTrackLog << endl;
-// 	m_fsTrack << m_PoseInMap.back()(0, 3) << " ";
-// 	m_fsTrack << m_PoseInMap.back()(1, 3) << " ";
-// 	m_fsTrack << m_PoseInMap.back()(2, 3) << endl;
+	// 	m_fsTrack << m_PoseInMap.back()(0, 3) << " ";
+	// 	m_fsTrack << m_PoseInMap.back()(1, 3) << " ";
+	// 	m_fsTrack << m_PoseInMap.back()(2, 3) << endl;
 	m_fsTrack.flush();
 
 	g_nlocateInd++;
 
 	return 1;
+}
+
+Eigen::VectorXd CLocationOpr::GetCorrectRT(Eigen::Matrix4d correct_pose)
+{
+	Eigen::Matrix3d rot_mat = correct_pose.block(0, 0, 3, 3);
+	Eigen::Vector3d rot_ = rot_mat.eulerAngles(2, 0, 1);//zxy
+	Eigen::Vector3d rot(rot_(1), rot_(2), rot_(0));//xyz
+	rot = rot / 3.141592654 * 180.0;
+	double dDeltaThetaX = rot(0);
+	if (dDeltaThetaX < -90.0)
+		dDeltaThetaX += 180.0;
+	if (dDeltaThetaX > 90.0)
+		dDeltaThetaX -= 180.0;
+	double dDeltaThetaY = rot(1);
+	if (dDeltaThetaY < -90.0)
+		dDeltaThetaY += 180.0;
+	if (dDeltaThetaY > 90.0)
+		dDeltaThetaY -= 180.0;
+	double dDeltaThetaZ = rot(2);
+	if (dDeltaThetaZ < -90.0)
+		dDeltaThetaZ += 180.0;
+	if (dDeltaThetaZ > 90.0)
+		dDeltaThetaZ -= 180.0;
+
+	char szLog[1024] = { 0 };
+	sprintf_s(szLog, 1024, "%d %.3f %.3f %.3f %.3f %.3f %.3f",
+		g_nlocateInd,
+		correct_pose(0, 3),
+		correct_pose(1, 3),
+		correct_pose(2, 3),
+		dDeltaThetaX,
+		dDeltaThetaY,
+		dDeltaThetaZ);
+	m_fsCorrectPose << szLog << endl;
+	m_fsCorrectPose.flush();
+
+	Eigen::VectorXd rt(6);
+	rt(0) = correct_pose(0, 3);
+	rt(1) = correct_pose(1, 3);
+	rt(2) = correct_pose(2, 3);
+	rt(3) = dDeltaThetaX;
+	rt(4) = dDeltaThetaY;
+	rt(5) = dDeltaThetaZ;
+
+	return rt;
 }
 
 int CLocationOpr::FilterPointCloud(pcl::PointCloud<pcl::PointXYZI>::Ptr& pt_in,
