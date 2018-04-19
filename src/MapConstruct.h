@@ -17,7 +17,8 @@ public:
     {
         m_dRepeatAvoidDist = -1.0;//移动距离小于m_dRepeatAvoidDist，则不要此数据，过滤停车数据
 //        m_nLatestCapacity = 20;
-		m_dMapSegmentDist = 10.0;//每移动m_dMapSegmentDist距离，则输出一次地图
+		m_dMapSegmentDist = 10.0;//Unit:meters 每移动m_dMapSegmentDist距离，则输出一次地图
+		m_dMaxSegmentTime = DBL_MAX;//Unit:seconds 点云累计的时间如果超过m_dMaxSegmentTime，则会输出一次地图
 		m_dQueueDist = 50.0;//每一次地图包含的范围
 		m_dBaseLatitude = 0.0;
 		m_dBaseLongitude = 0.0;
@@ -42,6 +43,7 @@ public:
 	double m_dRepeatAvoidDist;
 //	unsigned int m_nLatestCapacity;
 	double m_dMapSegmentDist;
+	double m_dMaxSegmentTime;
 	double m_dQueueDist;
 
 	double m_dBaseLatitude;
@@ -57,6 +59,7 @@ private:
     std::vector<size_t> m_PtContList;
 	std::vector<double> m_TotalMile;
 	double m_dDistAcc;
+	double m_dTimeAcc;
 
 	pcl::PointCloud<pcl::PointXYZI> m_PtListOut;
 };

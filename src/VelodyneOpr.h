@@ -6,8 +6,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/io/grabber.h>
-#include "Imu100Hz.h"
-#include "MapConstruct.h"
+//#include "Imu100Hz.h"
+//#include "MapConstruct.h"
 
 typedef boost::function<void(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr&)> VelodyneCallBackSweep;
 typedef boost::function<void(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr&, float, float)> VelodyneCallBackSector;
@@ -21,11 +21,13 @@ struct VelodyneDataReadParam
 		nDataFetchType = 0;
 		bUseExternalCallBack = false;
 		nPort = 0;
+		bIncludeNanPoint = false;
 	}
 	int nDevType;	//0:VLP-16 1:HDL-32
-	int nReadType;	//0:From EtherNet 1:From pcap
+	int nReadType;	//0:From EtherNet 1:From pcap 2:.vel文件
 	int nDataFetchType;	//0:queue By time 1:Continue wait
 	bool bUseExternalCallBack;	//使用外部数据回掉
+	bool bIncludeNanPoint;	//包含nan点云
 	std::string szPcapPath;
 	std::string szIp;
 	int nPort;

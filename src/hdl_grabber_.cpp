@@ -89,7 +89,10 @@ pcl::HDLGrabber::HDLGrabber (const std::string& correctionsFile,
 {
   initialize (correctionsFile);
   m_nDataFetchType = 0;
+  m_nFileType = 2;
   m_bUseExternalCallBack = false;
+  m_bGpsReady = false;
+  m_bIncludeNanPoint = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -123,7 +126,10 @@ pcl::HDLGrabber::HDLGrabber (const boost::asio::ip::address& ipAddress,
 {
   initialize (correctionsFile);
   m_nDataFetchType = 0;
+  m_nFileType = 2;
   m_bUseExternalCallBack = false;
+  m_bGpsReady = false;
+  m_bIncludeNanPoint = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -333,9 +339,17 @@ pcl::HDLGrabber::toPointClouds (HDLDataPacket *dataPacket)
   current_scan_xyzrgba_.reset (new pcl::PointCloud<pcl::PointXYZRGBA> ());
   current_scan_xyzi_.reset (new pcl::PointCloud<pcl::PointXYZI> ());
 
-   double dTime = 0.0;
-   memcpy(&dTime, ((uint8_t*)dataPacket)+1206, sizeof(double));
-   uint64_t velodyne_time = uint64_t(dTime*1000000.0);
+//    double dTime = 0.0;
+//    memcpy(&dTime, ((uint8_t*)dataPacket)+1206, sizeof(double));
+//    uint64_t velodyne_time = uint64_t(dTime*1000000.0);
+
+  if (dataPacket->gpsTimestamp < m_nTimeBefor)
+  {
+	  m_dHoursInDay += 1.0;
+  }
+  uint64_t velodyne_time = uint64_t(m_dHoursInDay*3600000000.0)+ dataPacket->gpsTimestamp;
+  m_nTimeBefor = dataPacket->gpsTimestamp;
+
    static int nHdl32Cont = 0;
    if (nHdl32Cont%2000 == 0)
    {
@@ -390,10 +404,14 @@ pcl::HDLGrabber::toPointClouds (HDLDataPacket *dataPacket)
       xyz.z = xyzrgba.z = xyzi.z;
 
       xyzrgba.rgba = laser_rgb_mapping_[j + offset].rgba;
-      if (pcl_isnan (xyz.x) || pcl_isnan (xyz.y) || pcl_isnan (xyz.z))
-      {
-        continue;
-      }
+	  
+	  if (!m_bIncludeNanPoint)
+	  {
+		  if (pcl_isnan(xyz.x) || pcl_isnan(xyz.y) || pcl_isnan(xyz.z))
+		  {
+			  continue;
+		  }
+	  }
 
       current_scan_xyz_->push_back (xyz);
       current_scan_xyzi_->push_back (xyzi);
@@ -518,7 +536,6 @@ pcl::HDLGrabber::enqueueHDLPacket (const uint8_t *data,
 
 void pcl::HDLGrabber::pause()
 {
-	int aaa = m_nDataFetchType;
 //	cloud_mutex_.lock();
 }
 
@@ -545,7 +562,7 @@ pcl::HDLGrabber::start ()
 	  return;
   }
 
-  if (pcap_file_name_.empty ())
+  if (m_nFileType == 0)
   {
     try
     {
@@ -575,12 +592,15 @@ pcl::HDLGrabber::start ()
     }
     hdl_read_packet_thread_ = new boost::thread (boost::bind (&HDLGrabber::readPacketsFromSocket, this));
   }
-  else
+  else if (m_nFileType == 1)
   {
 #ifdef HAVE_PCAP
-//   hdl_read_packet_thread_ = new boost::thread (boost::bind (&HDLGrabber::readPacketsFromPcap, this));
- 	  hdl_read_packet_thread_ = new boost::thread (boost::bind (&HDLGrabber::readPacketsFromLeadorLog, this));
+   hdl_read_packet_thread_ = new boost::thread (boost::bind (&HDLGrabber::readPacketsFromPcap, this)); 
 #endif // #ifdef HAVE_PCAP
+  }
+  else
+  {
+	  hdl_read_packet_thread_ = new boost::thread(boost::bind(&HDLGrabber::readPacketsFromLeadorLog, this));
   }
 }
 
@@ -758,6 +778,10 @@ pcl::HDLGrabber::readPacketsFromPcap ()
 
   int32_t returnValue = pcap_next_ex (pcap, &header, &data);
 
+  uint8_t buf[1214] = { 0 };
+
+  GPSDataPacket gps;
+
   while (returnValue >= 0 && !terminate_read_packet_thread_)
   {
     if (lasttime.tv_sec == 0)
@@ -781,7 +805,7 @@ pcl::HDLGrabber::readPacketsFromPcap ()
 	{
 		while (hdl_data_.size() > 100)
 		{
-			boost::this_thread::sleep (boost::posix_time::milliseconds (10));
+			boost::this_thread::sleep (boost::posix_time::milliseconds (100));
 		}
 	}
 
@@ -790,9 +814,19 @@ pcl::HDLGrabber::readPacketsFromPcap ()
 
     // The ETHERNET header is 42 bytes long; unnecessary
 //     HDLDataPacket* pp = (HDLDataPacket*)(data + 42);
-//     uint64_t* p_time_temp = (uint64_t*)(data + 42 + 1206);
-//    (*p_time_temp) = lasttime.tv_sec*1000000ULL+lasttime.tv_usec;
-    enqueueHDLPacket (data + 42, header->len - 42/* + sizeof(double)*/);
+//	std::cout << header->len << std::endl;
+	if (header->len == 512+42 && !m_bGpsReady)
+	{
+		memcpy(&gps, data + 42, 512);
+		processGpsInfo(gps);
+	}
+	if (header->len == 1206+42)
+	{
+		memcpy(buf, data + 42, 1206);
+		uint64_t* p_time_temp = (uint64_t*)(buf + 1206);
+		(*p_time_temp) = lasttime.tv_sec * 1000000ULL + lasttime.tv_usec;
+		enqueueHDLPacket(buf, 1214);
+	}
 
     returnValue = pcap_next_ex (pcap, &header, &data);
   }
@@ -829,7 +863,30 @@ pcl::HDLGrabber::readPacketsFromLeadorLog()
 	fs.close();
 }
 
+int pcl::HDLGrabber::processGpsInfo(GPSDataPacket& gpsInfo)
+{
+	if (strlen(gpsInfo.GPRMC) <= 0)
+	{
+		return -1;
+	}
 
+	std::vector<std::string> vecStr;
+	boost::split(vecStr, gpsInfo.GPRMC, boost::is_any_of(","));
+	if (vecStr.size() != 13)
+	{
+		return -1;
+	}
+	if (vecStr.front() != "$GPRMC")
+	{
+		return -1;
+	}
+
+	double dSecsInDay = atof(vecStr[1].c_str());
+	m_dHoursInDay = floor(dSecsInDay / 10000.0);
+	m_bGpsReady = true;
+
+	return 1;
+}
 
 #endif //#ifdef HAVE_PCAP
 

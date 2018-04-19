@@ -66,9 +66,13 @@ int CVelodyneOpr::Init(VelodyneDataReadParam& Param)
 		}
 	}
 
+	((HDLGrabber*)m_pgrabber)->m_nFileType = m_Param.nReadType;
+
 	((HDLGrabber*)m_pgrabber)->m_nDataFetchType = m_Param.nDataFetchType;
 
 	((HDLGrabber*)m_pgrabber)->m_bUseExternalCallBack = m_Param.bUseExternalCallBack;
+
+	((HDLGrabber*)m_pgrabber)->m_bIncludeNanPoint = m_Param.bIncludeNanPoint;
 
  	m_nSweepCont= 0;
 
@@ -133,6 +137,11 @@ void CVelodyneOpr::sweepScan(const pcl::PointCloud<pcl::PointXYZI>::ConstPtr& pt
 	{
 		std::cout << "Sweep: seq:" << pt->header.seq << " stamp:" << pt->header.stamp 
 			<< " points:" << pt->size() << std::endl;
+	}
+
+	while (m_bIsNewData)
+	{
+		boost::this_thread::sleep(boost::posix_time::milliseconds(100));
 	}
 	
 	m_nSweepCont++;

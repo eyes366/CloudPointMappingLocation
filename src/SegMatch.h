@@ -8,7 +8,7 @@ namespace segmatch
 {
 
 ///////////////////////////////////////////////////////////////////////
-//Segment of object in a frame
+//Segment of an object in a frame
 ///////////////////////////////////////////////////////////////////////
 class Segment
 {
@@ -26,7 +26,7 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////
-//
+//Match information between two segments
 ///////////////////////////////////////////////////////////////////////
 class SegmentMatch
 {
@@ -41,14 +41,14 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////
-//
+//Frame that contain many segments
 ///////////////////////////////////////////////////////////////////////
 class SegFrame
 {
 public:
     SegFrame();
-    int LoadDataFromPointCloud(int frame_ind_in, Eigen::Isometry3d pose_in,
-             pcl::PointCloud<pcl::PointXYZI>::Ptr pt_ori_in,
+    int LoadDataFromPointCloud(int frame_ind_in, Eigen::Matrix4d pose_in,
+//             pcl::PointCloud<pcl::PointXYZI>::Ptr pt_ori_in,
              pcl::PointCloud<pcl::PointXYZI>::Ptr pt_processed_in,
              pcl::PointCloud<pcl::PointXYZRGB>::Ptr seg_clolor_out = 0);
     int SaveSegFrame(std::string szSavePath);
@@ -60,7 +60,7 @@ public:
     std::vector<Segment> segments;
     cv::Mat features;
     Eigen::Isometry3d pose;
-    pcl::PointCloud<pcl::PointXYZI> cloud_ori;
+//    pcl::PointCloud<pcl::PointXYZI> cloud_ori;
 
 private:
     int EuclideanSegmentationProcess(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud,
@@ -77,7 +77,7 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////
-//
+//Match information between two SegFrames
 ///////////////////////////////////////////////////////////////////////
 class SegFrameMatch
 {
@@ -94,7 +94,7 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////
-//
+//SegMatcherParam
 ///////////////////////////////////////////////////////////////////////
 struct SegMatcherParam
 {
@@ -109,7 +109,7 @@ struct SegMatcherParam
 };
 
 ///////////////////////////////////////////////////////////////////////
-//
+//SegMatcher operator for closure detection
 ///////////////////////////////////////////////////////////////////////
 class SegMatcher
 {
@@ -152,14 +152,24 @@ struct SegmentMappingParam
 
 };
 
-class SegmentMappingOpr
+// class SegmentMappingOpr
+// {
+// public:
+//     int Init(SegmentMappingParam& Param);
+//     int StartMapping(std::string szProjPath);
+// 
+// private:
+//     SegmentMappingParam m_Param;
+// };
+
+class SegmentMappingOprEx
 {
 public:
-    int Init(SegmentMappingParam& Param);
-    int StartMapping(std::string szProjPath);
+	int Init(SegmentMappingParam& Param);
+	int StartMapping(std::string szProjPath);
 
 private:
-    SegmentMappingParam m_Param;
+	SegmentMappingParam m_Param;
 };
 
 }

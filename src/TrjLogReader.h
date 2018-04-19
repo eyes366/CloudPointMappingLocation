@@ -4,16 +4,17 @@
 #include <stdio.h>
 #include "TrjFile.h"
 #include <pcl/common/transforms.h>
+#include "common.h"
 
 class CTrjLogReader
 {
 public:
     CTrjLogReader();
-    int ReadLog(std::string szLogPath);
-    int GetPoseByTime(uint64_t nTime, Eigen::Isometry3d& pose, BlockTrj& data);
+    int ReadFile(std::string szLogPath);
+	int GetDataByTime(uint64_t nTime, GnssData& pose);
 
 public:
     int m_nSearchInd;
-    std::vector<BlockTrj> m_poses;
+    std::vector<GnssData> m_poses;
 };
 

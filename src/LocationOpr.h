@@ -5,6 +5,7 @@
 #include <list>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/registration/ndt.h>
+#include <boost/asio.hpp>
 //#include "Imu100Hz.h"
 #include "common.h"
 #include "MapConstruct.h"

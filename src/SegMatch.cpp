@@ -1,20 +1,23 @@
 #include <iostream>
 #include <pcl/io/pcd_io.h>
 #include <pcl/recognition/cg/geometric_consistency.h>
+#ifndef PCL_NO_VISUALIZATION
 #include <pcl/visualization/cloud_viewer.h>
+#endif // !PCL_NO_VISUALIZATION
 #include <pcl/search/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/voxel_grid.h>
 #include <boost/timer.hpp>
 
 #include "SegMatch.h"
 #include "TrjLogReader.h"
 #include "MapConstruct.h"
-#include "VLP16Graber.h"
+//#include "VLP16Graber.h"
 #include "GroundExtract.h"
 
 using namespace pcl;
-using namespace pcl::visualization;
+//using namespace pcl::visualization;
 using namespace segmatch;
 using namespace std;
 using namespace cv;
@@ -50,163 +53,180 @@ SegmentMappingParam::SegmentMappingParam()
 
 }
 
-int SegmentMappingOpr::Init(SegmentMappingParam& Param)
-{
-    m_Param = Param;
+// int SegmentMappingOpr::Init(SegmentMappingParam& Param)
+// {
+//     m_Param = Param;
+// 
+//     return 1;
+// }
+// 
+// static bool g_bIsPause = false;
+// 
+// #ifndef PCL_NO_VISUALIZATION
+// void visualization_button_callback (const pcl::visualization::KeyboardEvent &event,
+//                                     void* viewer_void)
+// {
+//     pcl::visualization::PCLVisualizer *viewer = static_cast<pcl::visualization::PCLVisualizer *> (viewer_void);
+//       if ((event.getKeySym () == "s" || event.getKeySym () == "S")&& event.keyDown ())
+//       {
+//             g_bIsPause = !g_bIsPause;
+//       }
+// }
+// #endif
 
-    return 1;
+// int SegmentMappingOpr::StartMapping(std::string szProjPath)
+// {
+// #ifndef PCL_NO_VISUALIZATION
+//     string szProPath(szProjPath);
+// 
+//     CTrjLogReader TrjReader;
+//     TrjReader.ReadLog(szProPath+"trj.txt");
+//     if (TrjReader.m_poses.size() <= 0)
+//     {
+//         cout << "Read trj.txt failed!" << endl;
+//         return -1;
+//     }
+// 
+//     CMapConstruct MapOpr;
+// 
+//     int nSourceType = 1;
+//     string szSourceAddr = szProPath+"0.pcap";
+//     ifstream fs_calib(szProPath+"calibration.txt");
+//     if (!fs_calib.is_open())
+//     {
+//         cout << "Failed open  " << szProPath+"calibration.txt" << endl;
+//         return -1;
+//     }
+//     CGroundExtractParam GroundExtractParam;
+//     fs_calib >> GroundExtractParam.dHeading;
+//     fs_calib >> GroundExtractParam.dRoll;
+//     fs_calib >> GroundExtractParam.dPitch;
+//     fs_calib >> GroundExtractParam.dHeight;
+//     cout << "dHeading:" << GroundExtractParam.dHeading <<
+//             "dRoll:" << GroundExtractParam.dRoll <<
+//             "dPitch:" << GroundExtractParam.dPitch <<
+//             "dHeight:" << GroundExtractParam.dHeight << endl;
+// 
+//     CGroundExtractor GroundExtractor;
+//     GroundExtractor.Init(GroundExtractParam);
+// 
+//     VLPGrabber* pGrabber = NULL;
+//     if (nSourceType == 0)
+//     {
+//         pGrabber = new VLPGrabber(boost::asio::ip::address_v4::from_string(szSourceAddr),2368);
+//     }
+//     else
+//     {
+//         pGrabber = new VLPGrabber(szSourceAddr);
+//     }
+// 
+//     SimpleVLPViewer<PointXYZI> v(*pGrabber);
+// 
+//     v.setMode(1);
+//     v.start();
+// 
+//     pcl::visualization::PCLVisualizer* p = NULL;
+//     int vp_1, vp_2;
+//     p = new pcl::visualization::PCLVisualizer(szProjPath.c_str());
+//     p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
+//     p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_1);
+//     p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
+//     p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_2);
+//     p->addCoordinateSystem(1.0,"vp_1" , vp_1);
+//     p->addCoordinateSystem(1.0,"vp_2" , vp_2);
+// 
+//     boost::signals2::connection button_connection = p->registerKeyboardCallback(visualization_button_callback, (void*)p);
+// 
+//     int nCont = 0;
+//     mkdir((szProPath+"map").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+//     ofstream fs_stamp((szProPath+"stamp.csv").c_str());
+//     while(1)
+//     {
+//         PointCloud<PointXYZI>::ConstPtr ptCloudPt;
+//         int nRt = v.nextFrame(ptCloudPt);
+//         if (nRt == 0)
+//         {
+//             cout << "Get pcap data failed!" << endl;
+//             p->spin();
+//             continue;
+//         }
+//         nCont++;
+//         boost::timer ter;
+// 
+//         BlockTrj trj_data;
+//         Eigen::Isometry3d pose_global;
+//         if (TrjReader.GetPoseByTime(ptCloudPt->header.stamp, pose_global, trj_data) < 0)
+//         {
+//             cout << "TrjReader.GetPoseByTime   failed!+++++++++++++++++++++++" << endl;
+//             continue;
+//         }
+// 
+//         std::cout << "Point cont:" << ptCloudPt->size() << std::endl;
+// 
+//         PointCloud<PointXYZI>::Ptr cloud_no_ground(new PointCloud<PointXYZI>);
+//         GroundExtractor.RemoveGround(ptCloudPt->makeShared(), cloud_no_ground);
+// 
+//         int nAddRt = MapOpr.AddFrame(cloud_no_ground, pose_global);
+//         if (nAddRt > 0)
+//         {
+//             fs_stamp << nCont << "," << trj_data.fileDataIdx << "," << trj_data.q[0] << ","
+//                      << trj_data.q[1] << "," << trj_data.q[2] << "," << trj_data.q[3] << ","
+//                      << trj_data.pos[0] << "," << trj_data.pos[1] << "," << trj_data.pos[2] << "," << endl;
+// 
+//             PointCloud<PointXYZI>::Ptr CloudMap(new PointCloud<PointXYZI>);
+//             PointCloud<PointXYZRGB>::Ptr CloudColor(new PointCloud<PointXYZRGB>);
+//             MapOpr.GetMap(CloudMap);
+// //            pcl::transformPointCloud (*CloudMap, *CloudMap, pose_global.inverse().matrix());
+//             string szSavePath = szProPath + "map/";
+//             SegFrame segframe;
+//             PointCloud<PointXYZI>::Ptr cloud_ori_rot(new PointCloud<PointXYZI>);
+//             transformPointCloud(*ptCloudPt, *cloud_ori_rot, pose_global.matrix());
+//             segframe.LoadDataFromPointCloud(nCont, pose_global, cloud_ori_rot, CloudMap, CloudColor);
+//             segframe.SaveSegFrame(szSavePath);
+// 
+// //            char szPtCloudSavePath[1024] = {0};
+// //            sprintf(szPtCloudSavePath, "%spointcloud/ptcoud%06d.pcd", szProPath.c_str(), nCont);
+// //            PCDWriter wr;
+// //            wr.writeBinary(szPtCloudSavePath, *CloudMap);
+// 
+//             PointCloudColorHandler<pcl::PointXYZRGB>* handler_2 = new PointCloudColorHandlerRGBField<PointXYZRGB> (CloudColor);
+//             p->removePointCloud("2",vp_2);
+//             p->addPointCloud(CloudColor,*handler_2,"2",vp_2);
+//             delete handler_2;
+//         }
+// 
+//         PointCloudColorHandler<pcl::PointXYZI>* handler_1 = new PointCloudColorHandlerGenericField<PointXYZI> (cloud_no_ground,"intensity");
+//         p->removePointCloud("1",vp_1);
+//         p->addPointCloud(cloud_no_ground,*handler_1, "1", vp_1);
+//         delete handler_1;
+// 
+//         std::cout<< "Time cost: " <<ter.elapsed()<<std::endl;
+// 
+//         while(g_bIsPause)
+//         {
+//             p->spinOnce();
+//         }
+// 
+//         p->spinOnce();
+//     }
+// 
+//     button_connection.disconnect();
+// 
+// #endif
+//     return 1;
+// }
+
+int SegmentMappingOprEx::Init(SegmentMappingParam& Param)
+{
+	m_Param = Param;
+
+	return 1;
 }
 
-static bool g_bIsPause = false;
-
-void visualization_button_callback (const pcl::visualization::KeyboardEvent &event,
-                                    void* viewer_void)
+int SegmentMappingOprEx::StartMapping(std::string szProjPath)
 {
-    pcl::visualization::PCLVisualizer *viewer = static_cast<pcl::visualization::PCLVisualizer *> (viewer_void);
-      if ((event.getKeySym () == "s" || event.getKeySym () == "S")&& event.keyDown ())
-      {
-            g_bIsPause = !g_bIsPause;
-      }
-}
 
-int SegmentMappingOpr::StartMapping(std::string szProjPath)
-{
-    string szProPath(szProjPath);
-
-    CTrjLogReader TrjReader;
-    TrjReader.ReadLog(szProPath+"trj.txt");
-    if (TrjReader.m_poses.size() <= 0)
-    {
-        cout << "Read trj.txt failed!" << endl;
-        return -1;
-    }
-
-    CMapConstruct MapOpr;
-
-    int nSourceType = 1;
-    string szSourceAddr = szProPath+"0.pcap";
-    ifstream fs_calib(szProPath+"calibration.txt");
-    if (!fs_calib.is_open())
-    {
-        cout << "Failed open  " << szProPath+"calibration.txt" << endl;
-        return -1;
-    }
-    CGroundExtractParam GroundExtractParam;
-    fs_calib >> GroundExtractParam.dHeading;
-    fs_calib >> GroundExtractParam.dRoll;
-    fs_calib >> GroundExtractParam.dPitch;
-    fs_calib >> GroundExtractParam.dHeight;
-    cout << "dHeading:" << GroundExtractParam.dHeading <<
-            "dRoll:" << GroundExtractParam.dRoll <<
-            "dPitch:" << GroundExtractParam.dPitch <<
-            "dHeight:" << GroundExtractParam.dHeight << endl;
-
-    CGroundExtractor GroundExtractor;
-    GroundExtractor.Init(GroundExtractParam);
-
-    VLPGrabber* pGrabber = NULL;
-    if (nSourceType == 0)
-    {
-        pGrabber = new VLPGrabber(boost::asio::ip::address_v4::from_string(szSourceAddr),2368);
-    }
-    else
-    {
-        pGrabber = new VLPGrabber(szSourceAddr);
-    }
-
-    SimpleVLPViewer<PointXYZI> v(*pGrabber);
-
-    v.setMode(1);
-    v.start();
-
-    pcl::visualization::PCLVisualizer* p = NULL;
-    int vp_1, vp_2;
-    p = new pcl::visualization::PCLVisualizer(szProjPath.c_str());
-    p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
-    p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_1);
-    p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
-    p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_2);
-    p->addCoordinateSystem(1.0,"vp_1" , vp_1);
-    p->addCoordinateSystem(1.0,"vp_2" , vp_2);
-
-    boost::signals2::connection button_connection = p->registerKeyboardCallback(visualization_button_callback, (void*)p);
-
-    int nCont = 0;
-    mkdir((szProPath+"map").c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    ofstream fs_stamp((szProPath+"stamp.csv").c_str());
-    while(1)
-    {
-        PointCloud<PointXYZI>::ConstPtr ptCloudPt;
-        int nRt = v.nextFrame(ptCloudPt);
-        if (nRt == 0)
-        {
-            cout << "Get pcap data failed!" << endl;
-            p->spin();
-            continue;
-        }
-        nCont++;
-        boost::timer ter;
-
-        BlockTrj trj_data;
-        Eigen::Isometry3d pose_global;
-        if (TrjReader.GetPoseByTime(ptCloudPt->header.stamp, pose_global, trj_data) < 0)
-        {
-            cout << "TrjReader.GetPoseByTime   failed!+++++++++++++++++++++++" << endl;
-            continue;
-        }
-
-        std::cout << "Point cont:" << ptCloudPt->size() << std::endl;
-
-        PointCloud<PointXYZI>::Ptr cloud_no_ground(new PointCloud<PointXYZI>);
-        GroundExtractor.RemoveGround(ptCloudPt->makeShared(), cloud_no_ground);
-
-        int nAddRt = MapOpr.AddFrame(cloud_no_ground, pose_global);
-        if (nAddRt > 0)
-        {
-            fs_stamp << nCont << "," << trj_data.fileDataIdx << "," << trj_data.q[0] << ","
-                     << trj_data.q[1] << "," << trj_data.q[2] << "," << trj_data.q[3] << ","
-                     << trj_data.pos[0] << "," << trj_data.pos[1] << "," << trj_data.pos[2] << "," << endl;
-
-            PointCloud<PointXYZI>::Ptr CloudMap(new PointCloud<PointXYZI>);
-            PointCloud<PointXYZRGB>::Ptr CloudColor(new PointCloud<PointXYZRGB>);
-            MapOpr.GetMap(CloudMap);
-//            pcl::transformPointCloud (*CloudMap, *CloudMap, pose_global.inverse().matrix());
-            string szSavePath = szProPath + "map/";
-            SegFrame segframe;
-            PointCloud<PointXYZI>::Ptr cloud_ori_rot(new PointCloud<PointXYZI>);
-            transformPointCloud(*ptCloudPt, *cloud_ori_rot, pose_global.matrix());
-            segframe.LoadDataFromPointCloud(nCont, pose_global, cloud_ori_rot, CloudMap, CloudColor);
-            segframe.SaveSegFrame(szSavePath);
-
-//            char szPtCloudSavePath[1024] = {0};
-//            sprintf(szPtCloudSavePath, "%spointcloud/ptcoud%06d.pcd", szProPath.c_str(), nCont);
-//            PCDWriter wr;
-//            wr.writeBinary(szPtCloudSavePath, *CloudMap);
-
-            PointCloudColorHandler<pcl::PointXYZRGB>* handler_2 = new PointCloudColorHandlerRGBField<PointXYZRGB> (CloudColor);
-            p->removePointCloud("2",vp_2);
-            p->addPointCloud(CloudColor,*handler_2,"2",vp_2);
-            delete handler_2;
-        }
-
-        PointCloudColorHandler<pcl::PointXYZI>* handler_1 = new PointCloudColorHandlerGenericField<PointXYZI> (cloud_no_ground,"intensity");
-        p->removePointCloud("1",vp_1);
-        p->addPointCloud(cloud_no_ground,*handler_1, "1", vp_1);
-        delete handler_1;
-
-        std::cout<< "Time cost: " <<ter.elapsed()<<std::endl;
-
-        while(g_bIsPause)
-        {
-            p->spinOnce();
-        }
-
-        p->spinOnce();
-    }
-
-    button_connection.disconnect();
-
-    return 1;
+	return 1;
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -217,8 +237,8 @@ SegFrame::SegFrame()
     lidar_time = 0;
 }
 
-int SegFrame::LoadDataFromPointCloud(int frame_ind_in, Eigen::Isometry3d pose_in,
-         pcl::PointCloud<pcl::PointXYZI>::Ptr pt_ori_in,
+int SegFrame::LoadDataFromPointCloud(int frame_ind_in, Eigen::Matrix4d pose_in,
+//         pcl::PointCloud<pcl::PointXYZI>::Ptr pt_ori_in,
          pcl::PointCloud<pcl::PointXYZI>::Ptr pt_processed_in,
          pcl::PointCloud<pcl::PointXYZRGB>::Ptr seg_clolor_out/* = 0*/)
 {
@@ -226,7 +246,7 @@ int SegFrame::LoadDataFromPointCloud(int frame_ind_in, Eigen::Isometry3d pose_in
     lidar_seq = pt_processed_in->header.seq;
     lidar_time = pt_processed_in->header.stamp;
     pose = pose_in;
-    cloud_ori = *pt_ori_in;
+//    cloud_ori = *pt_ori_in;
 
     PointCloud<PointXYZI>::Ptr CloudDown(new PointCloud<PointXYZI>);
     pcl::VoxelGrid<pcl::PointXYZI> sor;
@@ -261,6 +281,7 @@ int SegFrame::SaveSegFrame(std::string szSavePath)
         string szTemp = szSavePath + string(szLog);
         PCDWriter writer;
         writer.writeBinary(szTemp, segments[i].point_cloud);
+		std::cout << szTemp << std::endl;
     }
 
     char szLog[1024] = {0};
@@ -270,11 +291,12 @@ int SegFrame::SaveSegFrame(std::string szSavePath)
     fs.open(szTemp.c_str(), FileStorage::WRITE);
     fs << "features" << features;
     fs.release();
+	std::cout << szTemp << std::endl;
 
     sprintf(szLog, "OriCloudPoints%06d.pcd", frame_id);
     szTemp = szSavePath + string(szLog);
     PCDWriter wt;
-    wt.writeBinary(szTemp, cloud_ori);
+//    wt.writeBinary(szTemp, cloud_ori);
 
     return segments.size();
 }
@@ -289,7 +311,7 @@ int SegFrame::EuclideanSegmentationProcess(pcl::PointCloud<pcl::PointXYZI>::Ptr 
     tree->setInputCloud (cloud_filtered);
 
     pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
-    ec.setClusterTolerance (0.2); // 2cm
+    ec.setClusterTolerance (0.5/*0.2*/); // 2cm
     ec.setMinClusterSize (50);
     ec.setMaxClusterSize (25000);
     ec.setSearchMethod (tree);
@@ -569,7 +591,8 @@ SegFrameMatch::SegFrameMatch()
 SegMatcherParam::SegMatcherParam()
 {
     nMapInterval = 10;
-    szTreePath = string("/home/xinzi/catkin_ws/src/segmatch/laser_mapper/demonstration_files/kitti/random_forest_eigen_25trees.xml");
+//    szTreePath = string("/home/xinzi/catkin_ws/src/segmatch/laser_mapper/demonstration_files/kitti/random_forest_eigen_25trees.xml");
+	szTreePath = string("random_forest_eigen_25trees.xml");
     fFeatureMatchConfidence = 0.7;
     fGCSize = 0.4;
     nGCThreshold = 5/*4*/;
@@ -607,7 +630,7 @@ int SegMatcher::LoadBaseMap(std::string szMapPath)
     {
         char szLog[1024] = {0};
         sprintf(szLog, "ObjectFeature%06d.yml", i);
-        string szLog_ = szProPath + "map/" + string(szLog);
+        string szLog_ = szProPath /*+ "map/"*/ + string(szLog);
         FileStorage fs(szLog_, FileStorage::READ);
         Mat features;
         fs["features"] >> features;
@@ -633,7 +656,7 @@ int SegMatcher::LoadBaseMap(std::string szMapPath)
             PointCloud<PointXYZI>::Ptr temp(new PointCloud<PointXYZI>);
             char szPCD[1024] = {0};
             sprintf(szPCD, "ObjectPoints%06d_%06d.pcd", index_list[j], i);
-            string szPCD_ = szProPath + "map/" + string(szPCD);
+            string szPCD_ = szProPath /*+ "map/"*/ + string(szPCD);
             PCDReader Reader;
             if (Reader.read(szPCD_, *temp) < 0)
             {
@@ -650,10 +673,11 @@ int SegMatcher::LoadBaseMap(std::string szMapPath)
         }
         char szPCD_ori[1024] = {0};
         sprintf(szPCD_ori, "OriCloudPoints%06d.pcd", index_list[j]);
-        string szPCD_ori_ = szProPath + string("map/") + string(szPCD_ori);
+        string szPCD_ori_ = szProPath/* + string("map/")*/ + string(szPCD_ori);
         PCDReader rd;
-        rd.read(szPCD_ori_, frame.cloud_ori);
+//        rd.read(szPCD_ori_, frame.cloud_ori);
         base_map.push_back(frame);
+		std::cout << szPCD_ori_ << std::endl;
     }
 
     return base_map.size();
@@ -684,232 +708,233 @@ void str_split(const string& input, const string& delimiters,
 
 std::vector<SegFrameMatch> SegMatcher::MatchWithShow()
 {
-    vector<PointXYZ> track;
-    ifstream fs_track;
-    fs_track.open("/home/xinzi/data/20180201134130/stamp.csv");
-    if (!fs_track.is_open())
-    {
-        cout << "Open track file failed!!!!" << endl;
-        getchar();
-    }
-    string szLine;
-    while(getline(fs_track, szLine))
-    {
-        vector<string> items;
-        str_split(szLine, "," , items);
-        if (items.size() < 9)
-        {
-            break;
-        }
-        PointXYZ pt;
-        pt.x = atof(items[6].c_str());
-        pt.y = atof(items[7].c_str());
-        pt.z = atof(items[8].c_str());
-        track.push_back(pt);
-    }
-    cout << "Track size : " << track.size() << endl;
-
-    pcl::visualization::PCLVisualizer* p = NULL;
-    int vp_1, vp_2;
-    char szTitle[1024] = {0};
-    p = new pcl::visualization::PCLVisualizer("SegMatchTest");
-    p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
-    p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_1);
-    p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
-    p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_2);
-    p->addCoordinateSystem(1.0,"vp_1" , vp_1);
-    p->addCoordinateSystem(1.0,"vp_2" , vp_2);
-
-    SegFrame query_frame_disp;
-    SegFrame map_frame_disp;
-    SegFrameMatch frame_match_disp;
-    int range = 50;
-    for (int k = 0; k < base_map.size(); k++)
-    {
-        vector<PointXYZ> track_temp;
-        PointCloud<PointXYZI> LocalMap;
-        for (int i = k-range; i < k+range; i++)
-        {
-            if (i < 0 || i >= base_map.size())
-            {
-                continue;
-            }
-            SegFrame& frame = base_map[i];
-            if (i%5 == 0)
-            {
-                for (int j = 0; j < frame.segments.size(); j++)
-                {
-                    LocalMap += frame.segments[j].point_cloud;
-                }
-            }
-            if (i <= k)
-            {
-                track_temp.push_back(track[i]);
-            }
-        }
-
-
-        pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
-                new visualization::PointCloudColorHandlerCustom<PointXYZI> (
-                    LocalMap.makeShared(),255,
-                    255,255);
-        char szT[1024] = {0};
-        sprintf(szT, "%d", k);
-        p->removeAllPointClouds(vp_1);
-        p->addPointCloud(LocalMap.makeShared(),*handler, szT, vp_1);
-        delete handler;
-
-        pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler_ori =
-                new visualization::PointCloudColorHandlerCustom<PointXYZI> (
-                    base_map[k].cloud_ori.makeShared(),0,155,0);
-        sprintf(szT, "Ori%d", k);
-        p->addPointCloud(base_map[k].cloud_ori.makeShared(),*handler_ori, szT, vp_1);
-        delete handler_ori;
-
-        p->removeAllShapes(vp_1);
-        if (k > 0)
-        {
-            for (int m = 1; m < track_temp.size(); m++)
-            {
-                sprintf(szT, "Line%d", m);
-                p->addLine<PointXYZ, PointXYZ>(track_temp[m-1], track_temp[m],
-                        1.0, 0.0, 0.0, szT, vp_1);
-            }
-            PointXYZ ptView = track_temp.back();
-            p->setCameraPosition(ptView.x, ptView.y-90, ptView.z+50,
-                                 ptView.x, ptView.y, ptView.z,0.0, 0.0, 0.0, vp_1);
-
-        }
-
-        p->removeAllShapes(vp_1);
-        if (k > 0)
-        {
-            for (int m = 1; m < track_temp.size(); m++)
-            {
-                sprintf(szT, "Line%d", m);
-                p->addLine<PointXYZ, PointXYZ>(track_temp[m-1], track_temp[m],
-                        1.0, 0.0, 0.0, szT, vp_1);
-            }
-        }
-
-        if (k+5 >= 0 && k-5 < base_map.size() )
-        {
-            SegFrameMatch frame_match;
-            if (MatchFrame2Frame(base_map[k-5], base_map[k+5], frame_match) > 0)
-            {
-                query_frame_disp = base_map[k-5];
-                map_frame_disp = base_map[k+5];
-                frame_match_disp = frame_match;
-            }
-        }
-
-        SegFrame query_frame_disp_ = query_frame_disp;
-        for (unsigned int i = 0; i < query_frame_disp_.segments.size(); i++)
-        {
-            for (unsigned int j = 0; j < query_frame_disp_.segments[i].point_cloud.size(); j++)
-            {
-                query_frame_disp_.segments[i].point_cloud[j].z += 20.0;
-            }
-        }
-
-        srand (static_cast<unsigned int> (time (0)));
-        p->removeAllPointClouds(vp_2);
-        for (unsigned int i = 0; i < query_frame_disp_.segments.size(); i++)
-        {
-            bool bIsValid = false;
-            for (unsigned int j = 0; j < frame_match_disp.segment_matches.size(); j++)
-            {
-                if (frame_match_disp.match_valid[j] == 1 &&
-                        frame_match_disp.segment_matches[j].id1 == i)
-                {
-                    bIsValid = true;
-                    break;
-                }
-            }
-            double r = rand ()%255;
-            double g = rand ()%255;
-            double b = rand ()%255;
-            if (!bIsValid)
-            {
-                continue;
-                r = g= b = 50;
-            }
-            pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
-                    new visualization::PointCloudColorHandlerCustom<PointXYZI> (
-                        query_frame_disp_.segments[i].point_cloud.makeShared(),r,
-                        g,b);
-            string szT = string("PointCloud1_") + to_string(i);
-//                   p->removeAllPointClouds(vp_2);
-            p->addPointCloud(query_frame_disp_.segments[i].point_cloud.makeShared(),*handler, szT, vp_2);
-            delete handler;
-        }
-
-        for (unsigned int i = 0; i < map_frame_disp.segments.size(); i++)
-        {
-            bool bIsValid = false;
-            for (unsigned int j = 0; j < frame_match_disp.segment_matches.size(); j++)
-            {
-                if (frame_match_disp.match_valid[j] == 1 &&
-                        frame_match_disp.segment_matches[j].id2 == i)
-                {
-                    bIsValid = true;
-                    break;
-                }
-            }
-            double r = rand ()%255;
-            double g = rand ()%255;
-            double b = rand ()%255;
-            if (!bIsValid)
-            {
-//                continue;
-                r = g= b = 50;
-            }
-            pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
-                    new visualization::PointCloudColorHandlerCustom<PointXYZI> (
-                        map_frame_disp.segments[i].point_cloud.makeShared(),r,
-                        g,b);
-            string szT = string("PointCloud2_") + to_string(i);
-//                    p->removePointCloud(szT,vp_2);
-            p->addPointCloud(map_frame_disp.segments[i].point_cloud.makeShared(),*handler, szT, vp_2);
-            delete handler;
-        }
-
-        p->removeAllShapes(vp_2);
-        if (k > 0)
-        {
-            for (int m = 1; m < track_temp.size(); m++)
-            {
-                sprintf(szT, "Line%d__", m);
-                p->addLine<PointXYZ, PointXYZ>(track_temp[m-1], track_temp[m],
-                        1.0, 0.0, 0.0, szT, vp_2);
-            }
-        }
-        SegFrameMatch frame_match_disp_ = frame_match_disp;
-        for (unsigned int i = 0; i < frame_match_disp_.segment_matches.size(); i++)
-        {
-            string szT = string("LIne_") + to_string(i);
-            frame_match_disp_.segment_matches[i].center1.z += 20.0;
-            if (frame_match_disp_.match_valid[i] == 0)
-            {
-    //            p->addLine<PointXYZ,PointXYZ>(matches[i].center1, matches[i].center2,0.2,
-    //                                          0,0, szT);
-            }
-            else
-            {
-                p->addLine<PointXYZ,PointXYZ>(frame_match_disp_.segment_matches[i].center1,
-                                              frame_match_disp_.segment_matches[i].center2,
-                                              0, 1,0, szT, vp_2);
-            }
-        }
-
-
-        p->spinOnce();
-        if(k >=510)
-        {
-            p->spin();
-        }
-    }
-
+//     vector<PointXYZ> track;
+//     ifstream fs_track;
+//     fs_track.open("/home/xinzi/data/20180201134130/stamp.csv");
+//     if (!fs_track.is_open())
+//     {
+//         cout << "Open track file failed!!!!" << endl;
+//         getchar();
+//     }
+//     string szLine;
+//     while(getline(fs_track, szLine))
+//     {
+//         vector<string> items;
+//         str_split(szLine, "," , items);
+//         if (items.size() < 9)
+//         {
+//             break;
+//         }
+//         PointXYZ pt;
+//         pt.x = atof(items[6].c_str());
+//         pt.y = atof(items[7].c_str());
+//         pt.z = atof(items[8].c_str());
+//         track.push_back(pt);
+//     }
+//     cout << "Track size : " << track.size() << endl;
+// 
+// #ifndef PCL_NO_VISUALIZATION
+//     pcl::visualization::PCLVisualizer* p = NULL;
+//     int vp_1, vp_2;
+//     char szTitle[1024] = {0};
+//     p = new pcl::visualization::PCLVisualizer("SegMatchTest");
+//     p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
+//     p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_1);
+//     p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
+//     p->setCameraPosition(0.0, 0.0, 20, 0.0, 0.0, 0.0, vp_2);
+//     p->addCoordinateSystem(1.0,"vp_1" , vp_1);
+//     p->addCoordinateSystem(1.0,"vp_2" , vp_2);
+// 
+//     SegFrame query_frame_disp;
+//     SegFrame map_frame_disp;
+//     SegFrameMatch frame_match_disp;
+//     int range = 50;
+//     for (int k = 0; k < base_map.size(); k++)
+//     {
+//         vector<PointXYZ> track_temp;
+//         PointCloud<PointXYZI> LocalMap;
+//         for (int i = k-range; i < k+range; i++)
+//         {
+//             if (i < 0 || i >= base_map.size())
+//             {
+//                 continue;
+//             }
+//             SegFrame& frame = base_map[i];
+//             if (i%5 == 0)
+//             {
+//                 for (int j = 0; j < frame.segments.size(); j++)
+//                 {
+//                     LocalMap += frame.segments[j].point_cloud;
+//                 }
+//             }
+//             if (i <= k)
+//             {
+//                 track_temp.push_back(track[i]);
+//             }
+//         }
+// 
+// 
+//         pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
+//                 new visualization::PointCloudColorHandlerCustom<PointXYZI> (
+//                     LocalMap.makeShared(),255,
+//                     255,255);
+//         char szT[1024] = {0};
+//         sprintf(szT, "%d", k);
+//         p->removeAllPointClouds(vp_1);
+//         p->addPointCloud(LocalMap.makeShared(),*handler, szT, vp_1);
+//         delete handler;
+// 
+//         pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler_ori =
+//                 new visualization::PointCloudColorHandlerCustom<PointXYZI> (
+//                     base_map[k].cloud_ori.makeShared(),0,155,0);
+//         sprintf(szT, "Ori%d", k);
+//         p->addPointCloud(base_map[k].cloud_ori.makeShared(),*handler_ori, szT, vp_1);
+//         delete handler_ori;
+// 
+//         p->removeAllShapes(vp_1);
+//         if (k > 0)
+//         {
+//             for (int m = 1; m < track_temp.size(); m++)
+//             {
+//                 sprintf(szT, "Line%d", m);
+//                 p->addLine<PointXYZ, PointXYZ>(track_temp[m-1], track_temp[m],
+//                         1.0, 0.0, 0.0, szT, vp_1);
+//             }
+//             PointXYZ ptView = track_temp.back();
+//             p->setCameraPosition(ptView.x, ptView.y-90, ptView.z+50,
+//                                  ptView.x, ptView.y, ptView.z,0.0, 0.0, 0.0, vp_1);
+// 
+//         }
+// 
+//         p->removeAllShapes(vp_1);
+//         if (k > 0)
+//         {
+//             for (int m = 1; m < track_temp.size(); m++)
+//             {
+//                 sprintf(szT, "Line%d", m);
+//                 p->addLine<PointXYZ, PointXYZ>(track_temp[m-1], track_temp[m],
+//                         1.0, 0.0, 0.0, szT, vp_1);
+//             }
+//         }
+// 
+//         if (k+5 >= 0 && k-5 < base_map.size() )
+//         {
+//             SegFrameMatch frame_match;
+//             if (MatchFrame2Frame(base_map[k-5], base_map[k+5], frame_match) > 0)
+//             {
+//                 query_frame_disp = base_map[k-5];
+//                 map_frame_disp = base_map[k+5];
+//                 frame_match_disp = frame_match;
+//             }
+//         }
+// 
+//         SegFrame query_frame_disp_ = query_frame_disp;
+//         for (unsigned int i = 0; i < query_frame_disp_.segments.size(); i++)
+//         {
+//             for (unsigned int j = 0; j < query_frame_disp_.segments[i].point_cloud.size(); j++)
+//             {
+//                 query_frame_disp_.segments[i].point_cloud[j].z += 20.0;
+//             }
+//         }
+// 
+//         srand (static_cast<unsigned int> (time (0)));
+//         p->removeAllPointClouds(vp_2);
+//         for (unsigned int i = 0; i < query_frame_disp_.segments.size(); i++)
+//         {
+//             bool bIsValid = false;
+//             for (unsigned int j = 0; j < frame_match_disp.segment_matches.size(); j++)
+//             {
+//                 if (frame_match_disp.match_valid[j] == 1 &&
+//                         frame_match_disp.segment_matches[j].id1 == i)
+//                 {
+//                     bIsValid = true;
+//                     break;
+//                 }
+//             }
+//             double r = rand ()%255;
+//             double g = rand ()%255;
+//             double b = rand ()%255;
+//             if (!bIsValid)
+//             {
+//                 continue;
+//                 r = g= b = 50;
+//             }
+//             pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
+//                     new visualization::PointCloudColorHandlerCustom<PointXYZI> (
+//                         query_frame_disp_.segments[i].point_cloud.makeShared(),r,
+//                         g,b);
+//             string szT = string("PointCloud1_") + to_string(i);
+// //                   p->removeAllPointClouds(vp_2);
+//             p->addPointCloud(query_frame_disp_.segments[i].point_cloud.makeShared(),*handler, szT, vp_2);
+//             delete handler;
+//         }
+// 
+//         for (unsigned int i = 0; i < map_frame_disp.segments.size(); i++)
+//         {
+//             bool bIsValid = false;
+//             for (unsigned int j = 0; j < frame_match_disp.segment_matches.size(); j++)
+//             {
+//                 if (frame_match_disp.match_valid[j] == 1 &&
+//                         frame_match_disp.segment_matches[j].id2 == i)
+//                 {
+//                     bIsValid = true;
+//                     break;
+//                 }
+//             }
+//             double r = rand ()%255;
+//             double g = rand ()%255;
+//             double b = rand ()%255;
+//             if (!bIsValid)
+//             {
+// //                continue;
+//                 r = g= b = 50;
+//             }
+//             pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
+//                     new visualization::PointCloudColorHandlerCustom<PointXYZI> (
+//                         map_frame_disp.segments[i].point_cloud.makeShared(),r,
+//                         g,b);
+//             string szT = string("PointCloud2_") + to_string(i);
+// //                    p->removePointCloud(szT,vp_2);
+//             p->addPointCloud(map_frame_disp.segments[i].point_cloud.makeShared(),*handler, szT, vp_2);
+//             delete handler;
+//         }
+// 
+//         p->removeAllShapes(vp_2);
+//         if (k > 0)
+//         {
+//             for (int m = 1; m < track_temp.size(); m++)
+//             {
+//                 sprintf(szT, "Line%d__", m);
+//                 p->addLine<PointXYZ, PointXYZ>(track_temp[m-1], track_temp[m],
+//                         1.0, 0.0, 0.0, szT, vp_2);
+//             }
+//         }
+//         SegFrameMatch frame_match_disp_ = frame_match_disp;
+//         for (unsigned int i = 0; i < frame_match_disp_.segment_matches.size(); i++)
+//         {
+//             string szT = string("LIne_") + to_string(i);
+//             frame_match_disp_.segment_matches[i].center1.z += 20.0;
+//             if (frame_match_disp_.match_valid[i] == 0)
+//             {
+//     //            p->addLine<PointXYZ,PointXYZ>(matches[i].center1, matches[i].center2,0.2,
+//     //                                          0,0, szT);
+//             }
+//             else
+//             {
+//                 p->addLine<PointXYZ,PointXYZ>(frame_match_disp_.segment_matches[i].center1,
+//                                               frame_match_disp_.segment_matches[i].center2,
+//                                               0, 1,0, szT, vp_2);
+//             }
+//         }
+// 
+// 
+//         p->spinOnce();
+//         if(k >=510)
+//         {
+//             p->spin();
+//         }
+//     }
+// #endif
 
     vector<SegFrameMatch> aaa;
     return aaa;
@@ -930,6 +955,7 @@ std::vector<SegFrameMatch> SegMatcher::Match()
                     continue;
                 }
                 SegFrameMatch frame_match;
+				std::cout << "match:" << base_map[i].frame_id << "-" << base_map[j].frame_id << std::endl;
                 if (MatchFrame2Frame(base_map[i], base_map[j],
                                      frame_match) > 0)
                 {
@@ -987,72 +1013,78 @@ int SegMatcher::SaveMatches(std::string szSavePath)
 int SegMatcher::ShowFrameMatch(SegFrame& query_frame, SegFrame& map_frame,
                    SegFrameMatch& frame_match)
 {
-    pcl::visualization::PCLVisualizer* p = NULL;
-    int vp_1, vp_2;
-    char szTitle[1024] = {0};
-    sprintf(szTitle, "%d-%d", frame_match.query_frame_id, frame_match.base_map_id);
-    p = new pcl::visualization::PCLVisualizer(string(szTitle));
-    p->createViewPort (0.0, 0, 1.0, 1.0, vp_1);
-    p->setCameraPosition(0.0, 0.0, 100, 0.0, 0.0, 0.0, vp_1);
-    p->addCoordinateSystem(1.0,"vp_1" , vp_1);
+#ifdef PCL_NO_VISUALIZATION
+	return 0;
+#else
+	pcl::visualization::PCLVisualizer* p = NULL;
+	int vp_1, vp_2;
+	char szTitle[1024] = { 0 };
+	sprintf(szTitle, "%d-%d", frame_match.query_frame_id, frame_match.base_map_id);
+	p = new pcl::visualization::PCLVisualizer(string(szTitle));
+	p->createViewPort(0.0, 0, 1.0, 1.0, vp_1);
+	p->setCameraPosition(0.0, 0.0, 100, 0.0, 0.0, 0.0, vp_1);
+	p->addCoordinateSystem(1.0, "vp_1", vp_1);
 
-    SegFrame query_frame_ = query_frame;
+	SegFrame query_frame_ = query_frame;
 
-    for (unsigned int i = 0; i < query_frame_.segments.size(); i++)
-    {
-        for (unsigned int j = 0; j < query_frame_.segments[i].point_cloud.size(); j++)
-        {
-            query_frame_.segments[i].point_cloud[j].z += 50.0;
-        }
-    }
+	for (unsigned int i = 0; i < query_frame_.segments.size(); i++)
+	{
+		for (unsigned int j = 0; j < query_frame_.segments[i].point_cloud.size(); j++)
+		{
+			query_frame_.segments[i].point_cloud[j].z += 50.0;
+		}
+	}
 
-//    p->removeAllPointClouds();
-    srand (static_cast<unsigned int> (time (0)));
-    for (unsigned int i = 0; i < query_frame_.segments.size(); i++)
-    {
-        pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
-                new visualization::PointCloudColorHandlerCustom<PointXYZI> (
-                    query_frame_.segments[i].point_cloud.makeShared(),rand ()%255,
-                    rand ()%255,rand ()%255);
-        string szT = string("PointCloud1") + to_string(i);
-//        p->removePointCloud(szT,vp_1);
-        p->addPointCloud(query_frame_.segments[i].point_cloud.makeShared(),*handler, szT, vp_1);
-        delete handler;
-    }
+	//    p->removeAllPointClouds();
+	srand(static_cast<unsigned int> (time(0)));
+	for (unsigned int i = 0; i < query_frame_.segments.size(); i++)
+	{
+		pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
+			new visualization::PointCloudColorHandlerCustom<PointXYZI>(
+				query_frame_.segments[i].point_cloud.makeShared(), rand() % 255,
+				rand() % 255, rand() % 255);
+		string szT = string("PointCloud1") + to_string(i);
+		//        p->removePointCloud(szT,vp_1);
+		p->addPointCloud(query_frame_.segments[i].point_cloud.makeShared(), *handler, szT, vp_1);
+		delete handler;
+	}
 
-    for (unsigned int i = 0; i < map_frame.segments.size(); i++)
-    {
-        pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
-                new visualization::PointCloudColorHandlerCustom<PointXYZI> (
-                    map_frame.segments[i].point_cloud.makeShared(),rand ()%255,
-                    rand ()%255,rand ()%255);
-        string szT = string("PointCloud2") + to_string(i);
-//        p->removePointCloud("1",vp_1);
-        p->addPointCloud(map_frame.segments[i].point_cloud.makeShared(),*handler, szT, vp_1);
-        delete handler;
-    }
+	for (unsigned int i = 0; i < map_frame.segments.size(); i++)
+	{
+		pcl::visualization::PointCloudColorHandler<pcl::PointXYZI>* handler =
+			new visualization::PointCloudColorHandlerCustom<PointXYZI>(
+				map_frame.segments[i].point_cloud.makeShared(), rand() % 255,
+				rand() % 255, rand() % 255);
+		string szT = string("PointCloud2") + to_string(i);
+		//        p->removePointCloud("1",vp_1);
+		p->addPointCloud(map_frame.segments[i].point_cloud.makeShared(), *handler, szT, vp_1);
+		delete handler;
+	}
 
-    p->removeAllShapes();
+	p->removeAllShapes();
 
-    SegFrameMatch frame_match_ = frame_match;
-    for (unsigned int i = 0; i < frame_match_.segment_matches.size(); i++)
-    {
-        string szT = string("LIne") + to_string(i);
-        frame_match_.segment_matches[i].center1.z += 50.0;
-        if (frame_match_.match_valid[i] == 0)
-        {
-//            p->addLine<PointXYZ,PointXYZ>(matches[i].center1, matches[i].center2,0.2,
-//                                          0,0, szT);
-        }
-        else
-        {
-            p->addLine<PointXYZ,PointXYZ>(frame_match_.segment_matches[i].center1,
-                                          frame_match_.segment_matches[i].center2,
-                                          0, 1,0, szT);
-        }
-    }
+	SegFrameMatch frame_match_ = frame_match;
+	for (unsigned int i = 0; i < frame_match_.segment_matches.size(); i++)
+	{
+		string szT = string("LIne") + to_string(i);
+		frame_match_.segment_matches[i].center1.z += 50.0;
+		if (frame_match_.match_valid[i] == 0)
+		{
+			//            p->addLine<PointXYZ,PointXYZ>(matches[i].center1, matches[i].center2,0.2,
+			//                                          0,0, szT);
+		}
+		else
+		{
+			p->addLine<PointXYZ, PointXYZ>(frame_match_.segment_matches[i].center1,
+				frame_match_.segment_matches[i].center2,
+				0, 1, 0, szT);
+		}
+	}
 
-    p->spin();
+	p->spin();
+	return 1;
+#endif // PCL_NO_VISUALIZATION
+
 }
 
 int SegMatcher::MatchFrame2Frame(SegFrame& query_frame, SegFrame& map_frame,

@@ -126,29 +126,51 @@ int CMapConstruct::AddFrameByGps_QueueType(pcl::PointCloud<pcl::PointXYZI>::Ptr&
 	if (m_poseImuListHistory.size() > 0)
 	{
 		GnssData last_imu = m_poseImuListHistory.back();
-		double dDistY = 111319.55*(imu_data.dLatitude - last_imu.dLatitude);
-		double dDistX = 111319.55*(imu_data.dLongitude - last_imu.dLongitude)*
-			cos(last_imu.dLatitude/180.0*3.141592654);
+		double dDistX, dDistY;
+		if (imu_data.nPositionType == 0)
+		{
+			dDistY = 111319.55*(imu_data.dLatitude - last_imu.dLatitude);
+			dDistX = 111319.55*(imu_data.dLongitude - last_imu.dLongitude)*
+				cos(last_imu.dLatitude / 180.0*3.141592654);
+		}
+		else
+		{
+			dDistX = imu_data.dX - last_imu.dX;
+			dDistY = imu_data.dY - last_imu.dY;
+		}
 		double dDist = sqrt(pow(dDistX,2)+pow(dDistY,2));
 		if (dDist < m_dRepeatAvoidDist)
 		{
 			return -1;
 		}
+		m_dTimeAcc += abs(imu_data.dSecInWeek - last_imu.dSecInWeek)/1000000.0;
 		m_dDistAcc += dDist;
 		m_TotalMile.push_back(m_TotalMile.back()+dDist);
 	}
 	else
 	{
+		m_dTimeAcc = 0.0;
 		m_dDistAcc = 0.0;
 		m_TotalMile.push_back(0.0);
 	}
 	m_poseImuListHistory.push_back(imu_data);
 
-//	GnssData first_imu = m_poseImuListHistory.front();
-	double dDistY = 111319.55*(imu_data.dLatitude - m_dBaseLatitude/*first_imu.dLatitude*/);
-	double dDistX = 111319.55*(imu_data.dLongitude - m_dBaseLongitude/*first_imu.dLongitude*/)*
-		cos(m_dBaseLatitude/*first_imu.dLatitude*//180.0*3.141592654);
-	double dDistZ = imu_data.dAltitude - m_dBaseAltitude/*first_imu.dAltitude*/;
+	double dDistX, dDistY, dDistZ;
+	if (imu_data.nPositionType == 0)//gps
+	{
+		//	GnssData first_imu = m_poseImuListHistory.front();
+		dDistY = 111319.55*(imu_data.dLatitude - m_dBaseLatitude/*first_imu.dLatitude*/);
+		dDistX = 111319.55*(imu_data.dLongitude - m_dBaseLongitude/*first_imu.dLongitude*/)*
+			cos(m_dBaseLatitude/*first_imu.dLatitude*/ / 180.0*3.141592654);
+		dDistZ = imu_data.dAltitude - m_dBaseAltitude/*first_imu.dAltitude*/;
+	}
+	else
+	{
+		dDistX = imu_data.dX;
+		dDistY = imu_data.dY;
+		dDistZ = imu_data.dZ;
+	}
+
 	Eigen::Matrix4d tf;
 	if (imu_data.nPoseType == 0)//Euler
 	{
@@ -219,7 +241,28 @@ int CMapConstruct::AddFrameByGps_QueueType(pcl::PointCloud<pcl::PointXYZI>::Ptr&
 		m_PtListOut = m_PtList;
 
 		m_dDistAcc = 0.0;
+		m_dTimeAcc = 0.0;
 		return 1;
+	}
+
+	if (m_dTimeAcc >= m_dMaxSegmentTime)
+	{
+		m_PtListOut = m_PtList;
+
+		int nRemoveInd = int(m_TotalMile.size()) - 1;
+		size_t nRemovePointCont = 0;
+		for (unsigned int i = 0; i+1 < m_TotalMile.size(); i++)
+		{
+			nRemovePointCont += m_PtContList[i];
+		}
+		m_PtList.erase(m_PtList.begin(), m_PtList.begin() + nRemovePointCont);
+		m_PtContList.erase(m_PtContList.begin(), m_PtContList.begin() + nRemoveInd);
+		m_TotalMile.erase(m_TotalMile.begin(), m_TotalMile.begin() + nRemoveInd);
+
+		m_dDistAcc = 0.0;
+		m_dTimeAcc = 0.0;
+		std::cout << "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" << std::endl;
+		return 2;
 	}
 
 	return -1/*m_PtList.size()*/;

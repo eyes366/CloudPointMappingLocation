@@ -148,6 +148,8 @@ namespace pcl
 
 	  int m_nDataFetchType;//0:By time 1:By frame
 	  bool m_bUseExternalCallBack;
+	  int m_nFileType;//0:From EtherNet 1:From pcap 2:.velÎÄ¼þ
+	  bool m_bIncludeNanPoint;//output Nan points
 	  uint64_t m_nHour;
 
       /** \brief Obtains the name of this I/O Grabber
@@ -353,20 +355,24 @@ namespace pcl
       bool
       isAddressUnspecified (const boost::asio::ip::address& ip_address);
 
+public:
 	  uint8_t m_pszBuf[1214];
       boost::mutex cloud_mutex_;
 	  int m_nCont;
 	  int64_t m_nTimeBefor;
+	  bool m_bGpsReady;
+	  double m_dHoursInDay;
 #pragma pack(push, 1)
 	  struct GPSDataPacket
 	  {
 		  unsigned char unused0[198];
 		  unsigned int timeStamp;
 		  unsigned char unused1[4];
-		  unsigned char GPRMC[90];
+		  char GPRMC[90];
 		  unsigned char unused2[216];
 	  };
 #pragma pack(pop)
+	  int processGpsInfo(GPSDataPacket& gpsInfo);
   };
 }
 

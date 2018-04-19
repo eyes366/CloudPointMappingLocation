@@ -5,8 +5,9 @@ CTrjLogReader::CTrjLogReader()
     m_nSearchInd = 0;
 }
 
-int CTrjLogReader::ReadLog(std::string szLogPath)
+int CTrjLogReader::ReadFile(std::string szLogPath)
 {
+	std::vector<BlockTrj> poses;
     TrjFileParse trj;
     trj.open(szLogPath.c_str());
     HeaderTrj header;
@@ -18,50 +19,77 @@ int CTrjLogReader::ReadLog(std::string szLogPath)
         {
             break;
         }
-        poseT.pos[2] = 0.0;
-        m_poses.push_back(poseT);
+		poseT.time = uint64_t(poseT.time - floor(poseT.time / (24.0*3600.0*1000000.0))*24.0*3600.0*1000000.0);
+        poses.push_back(poseT);
+		GnssData gps;
+		gps.dSecInWeek = poseT.time;// (poseT.time - floor(poseT.time / (24.0*3600.0*1000000.0))*24.0*3600.0*1000000.0);
+		gps.nPositionType = 1;
+		gps.dX = poseT.pos[0];
+		gps.dY = poseT.pos[1];
+		gps.dZ = poseT.pos[2];
+		gps.nPoseType = 1;
+		gps.qw = poseT.q[0];
+		gps.qx = poseT.q[1];
+		gps.qy = poseT.q[2];
+		gps.qz = poseT.q[3];
+		m_poses.push_back(gps);
     }
-    std::cout << "Poses cont: " << m_poses.size() << std::endl;
-    std::cout << "Start pose" << m_poses.front().pos[0] << "," <<
-                 m_poses.front().pos[1] << "," <<
-                 m_poses.front().pos[2] << "," << std::endl;
-    std::cout << "End pose" << m_poses.back().pos[0] << "," <<
-                 m_poses.back().pos[1] << "," <<
-                 m_poses.back().pos[2] << "," << std::endl;
-    std::cout << "Start time" << m_poses.front().time << std::endl;
-    std::cout << "End time" << m_poses.back().time << std::endl;
+    std::cout << "Poses cont: " << poses.size() << std::endl;
+    std::cout << "Start pose" << poses.front().pos[0] << "," <<
+                 poses.front().pos[1] << "," <<
+                 poses.front().pos[2] << "," << std::endl;
+    std::cout << "End pose" << poses.back().pos[0] << "," <<
+                 poses.back().pos[1] << "," <<
+                 poses.back().pos[2] << "," << std::endl;
+    std::cout << "Start time" << poses.front().time << std::endl;
+    std::cout << "End time" << poses.back().time << std::endl;
 
-    return m_poses.size();
+    return poses.size();
 }
 
-int CTrjLogReader::GetPoseByTime(uint64_t nTime, Eigen::Isometry3d& pose,
-                                 BlockTrj& data)
+
+int CTrjLogReader::GetDataByTime(uint64_t nTime, GnssData& data)
 {
-    uint64_t lidar_time_stamp = nTime;
-    int nSearchT = -1;
-    for (unsigned int i = m_nSearchInd; i+1 < m_poses.size(); i++)
-    {
-        if(m_poses[i].time <= lidar_time_stamp &&
-                m_poses[i+1].time >= lidar_time_stamp)
-        {
-            m_nSearchInd = i;
-            nSearchT = i;
-            break;
-        }
-    }
-    if (nSearchT < 0 || nSearchT >= m_poses.size())
-    {
-        return -1;
-    }
-    BlockTrj& pose_now = m_poses[nSearchT];
-    data = pose_now;
-    Eigen::Quaterniond q(pose_now.q[0], pose_now.q[1], pose_now.q[2], pose_now.q[3]);
-    Eigen::Isometry3d tran;
-    pose = q;
-    pose(0, 3) = pose_now.pos[0];
-    pose(1, 3) = pose_now.pos[1];
-    pose(2, 3) = pose_now.pos[2];
+	if (m_poses.size() <= 0)
+	{
+		return -1;
+	}
+	if (nTime > m_poses.back().dSecInWeek ||
+		nTime < m_poses.front().dSecInWeek)
+	{
+		return -1;
+	}
 
+	for (unsigned int i = m_nSearchInd; i + 1 < m_poses.size(); i++)
+	{
+		if (nTime >= m_poses[i].dSecInWeek &&
+			nTime < m_poses[i + 1].dSecInWeek)
+		{
+			m_nSearchInd = i;
+			GnssData data0 = m_poses[i];
+			GnssData data1 = m_poses[i + 1];
+			double dP1 = (double)(nTime - m_poses[i].dSecInWeek) / (double)(m_poses[i + 1].dSecInWeek - m_poses[i].dSecInWeek);
+			double dP0 = (double)(m_poses[i + 1].dSecInWeek - nTime) / (double)(m_poses[i + 1].dSecInWeek - m_poses[i].dSecInWeek);
+			data = m_poses[i];
+			data.dGpsWeek = dP0*data0.dGpsWeek + dP1*data1.dGpsWeek;
+			data.dSecInWeek = dP0*data0.dSecInWeek + dP1*data1.dSecInWeek;
+			data.dLongitude = dP0*data0.dLongitude + dP1*data1.dLongitude;
+			data.dLatitude = dP0*data0.dLatitude + dP1*data1.dLatitude;
+			data.dAltitude = dP0*data0.dAltitude + dP1*data1.dAltitude;
+			data.dRoll = dP0*data0.dRoll + dP1*data1.dRoll;
+			data.dPitch = dP0*data0.dPitch + dP1*data1.dPitch;
+			data.dHeading = dP0*data0.dHeading + dP1*data1.dHeading;
+			Eigen::Quaterniond q0(data0.qw, data0.qx, data0.qy, data0.qz);//²åÖµ
+			Eigen::Quaterniond q1(data1.qw, data1.qx, data1.qy, data1.qz);//
+			Eigen::Quaterniond qres = q0.slerp(dP1, q1);
+			data.qw = qres.w();
+			data.qx = qres.x();
+			data.qy = qres.y();
+			data.qz = qres.z();
 
-    return 1;
+			return 1;
+		}
+	}
+
+	return -1;
 }

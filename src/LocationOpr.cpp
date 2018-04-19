@@ -84,9 +84,10 @@ int CLocationOpr::Init(LocationAPIParam Param)
 	// 		m_Calib = m_Calib*calib32_16.inverse();
 	// 	}
 
-	m_MapOpr.m_dRepeatAvoidDist = 0.0001;// 0.0001m/0.0005s=0.2m/s=0.7km/h
+//	m_MapOpr.m_dRepeatAvoidDist = 0.0001;// 0.0001m/0.0005s=0.2m/s=0.7km/h
 	m_MapOpr.m_dMapSegmentDist = m_Param.dSegmentDist/*5.0*/;
 	m_MapOpr.m_dQueueDist = m_Param.dLocalMapRange/*50.0*/;
+	m_MapOpr.m_dMaxSegmentTime = 1.0;//1s
 	// 	if (m_Param.nLidarType == 0)
 	// 	{
 	// 		m_MapOpr.m_dQueueDist = 5.0;
@@ -778,6 +779,7 @@ void CLocationOpr::FeedSectorSector_(const pcl::PointCloud<pcl::PointXYZI>::Cons
 	m_DrTrackLock.lock();
 	int nLocalMapRt = m_MapOpr.AddFrameByGps_QueueType(mapT.makeShared(), gpsData);
 	m_DrTrackLock.unlock();
+	m_fsLocalMap << nLocalMapRt << "_,";
 	if (m_PoseDr.size() <= 0)//获取局部地图的初始位置
 	{
 		m_MapOpr.GetLastTf(m_LocalMapTf);

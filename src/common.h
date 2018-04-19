@@ -60,10 +60,14 @@ struct GnssData
 	}
 	double dGpsWeek;
 	double dSecInWeek;
+	int nPositionType;//0:经纬度 1：平面
 	double dRelTime;//相对第一帧的时间，微秒
 	double dLatitude;
 	double dLongitude;
 	double dAltitude;
+	double dX;
+	double dY;
+	double dZ;
 	int nPoseType;//0:欧拉角 1:四元数
 	double dHeading;
 	double dRoll;
